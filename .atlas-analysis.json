@@ -1,0 +1,188 @@
+{
+  "projectType": "saas",
+  "projectName": "Ecom",
+  "projectDescription": "A complete multi-vendor e-commerce platform with marketplace features, payment integrations, and advanced selling tools",
+  "theme": "almond",
+  "primaryColor": "#0961b3",
+  "lightColor": "#4a9de8",
+  "darkColor": "#064a85",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "installation", "configuration"]
+          },
+          {
+            "group": "Setup",
+            "pages": ["setup/environment", "setup/database", "setup/deployment"]
+          }
+        ]
+      },
+      {
+        "tab": "Features",
+        "groups": [
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/products",
+              "features/categories-brands",
+              "features/orders",
+              "features/cart-checkout"
+            ]
+          },
+          {
+            "group": "Marketing",
+            "pages": [
+              "features/flash-deals",
+              "features/coupons",
+              "features/affiliate-program",
+              "features/club-points"
+            ]
+          },
+          {
+            "group": "Multi-Vendor",
+            "pages": [
+              "features/seller-management",
+              "features/seller-packages",
+              "features/commissions"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "features/wholesale",
+              "features/auction",
+              "features/digital-products",
+              "features/customer-products"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "User Guides",
+        "groups": [
+          {
+            "group": "Admin Guide",
+            "pages": [
+              "admin/dashboard",
+              "admin/product-management",
+              "admin/order-management",
+              "admin/user-management",
+              "admin/business-settings"
+            ]
+          },
+          {
+            "group": "Seller Guide",
+            "pages": [
+              "seller/getting-started",
+              "seller/shop-setup",
+              "seller/adding-products",
+              "seller/managing-orders",
+              "seller/payments-withdrawals"
+            ]
+          },
+          {
+            "group": "Customer Guide",
+            "pages": [
+              "customer/registration",
+              "customer/shopping",
+              "customer/wallet",
+              "customer/affiliate"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": ["api/overview", "api/authentication"]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/products",
+              "api/cart",
+              "api/orders",
+              "api/user",
+              "api/payments"
+            ]
+          },
+          {
+            "group": "Specialized APIs",
+            "pages": [
+              "api/auction",
+              "api/delivery-boy",
+              "api/chat"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Integrations",
+        "groups": [
+          {
+            "group": "Payment Gateways",
+            "pages": [
+              "integrations/payments-overview",
+              "integrations/stripe",
+              "integrations/paypal",
+              "integrations/razorpay",
+              "integrations/sslcommerz",
+              "integrations/other-gateways"
+            ]
+          },
+          {
+            "group": "Shipping & Delivery",
+            "pages": [
+              "integrations/carriers",
+              "integrations/pickup-points",
+              "integrations/delivery-boys"
+            ]
+          },
+          {
+            "group": "External Services",
+            "pages": [
+              "integrations/social-login",
+              "integrations/sms-otp",
+              "integrations/storage"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Multi-vendor marketplace with seller management",
+    "Flash deals and promotional campaigns",
+    "Multiple payment gateway integrations",
+    "Affiliate and club points loyalty programs",
+    "Wholesale and auction products",
+    "Digital and physical product support",
+    "Multi-currency and multi-language support",
+    "Mobile API for iOS/Android apps",
+    "Delivery boy management system",
+    "Advanced order and inventory management"
+  ],
+  "publicApiSurface": [
+    "POST /api/v2/auth/login - User authentication",
+    "POST /api/v2/auth/signup - User registration",
+    "GET /api/v2/products - List products",
+    "GET /api/v2/products/{id} - Product details",
+    "POST /api/v2/carts/add - Add to cart",
+    "GET /api/v2/cart-summary - Cart summary",
+    "POST /api/v2/order/store - Create order",
+    "GET /api/v2/purchase-history - Order history",
+    "GET /api/v2/categories - List categories",
+    "POST /api/v2/coupon-apply - Apply coupon",
+    "GET /api/v2/auction/products - Auction products",
+    "POST /api/v2/auction/place-bid - Place bid",
+    "GET /api/v2/chat/conversations - Chat conversations",
+    "POST /api/v2/reviews/submit - Submit review",
+    "GET /api/v2/wallet/history - Wallet history"
+  ]
+}
