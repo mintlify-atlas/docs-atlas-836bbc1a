@@ -1,0 +1,421 @@
+---
+title: 'Shipping Carriers'
+description: 'Configure shipping carriers and delivery zones'
+icon: 'truck'
+---
+
+## Overview
+
+Ecom's carrier system enables flexible shipping cost calculation based on weight, price, or zones. You can configure multiple carriers with different pricing structures and delivery timeframes.
+
+## Carrier Features
+
+- Multiple carrier support
+- Zone-based pricing
+- Weight or price-based billing
+- Free shipping option
+- Transit time configuration
+- Custom carrier logos
+- Enable/disable carriers
+
+## Configuration
+
+### Accessing Carrier Management
+
+<Steps>
+  <Step title="Login to Admin Panel">
+    Access your admin dashboard
+  </Step>
+  
+  <Step title="Navigate to Carriers">
+    Go to **Setup & Configurations** → **Shipping** → **Shipping Carriers**
+  </Step>
+  
+  <Step title="Create New Carrier">
+    Click **Add New Carrier** button
+  </Step>
+</Steps>
+
+## Controller Location
+
+```
+app/Http/Controllers/CarrierController.php
+```
+
+## Database Model
+
+```
+app/Models/Carrier.php
+```
+
+### Model Relationships
+
+```php app/Models/Carrier.php
+class Carrier extends Model
+{
+    use HasFactory;
+
+    public function carrier_ranges(){
+        return $this->hasMany(CarrierRange::class);
+    }
+    
+    public function carrier_range_prices(){
+        return $this->hasMany(CarrierRangePrice::class);
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('status', 1);
+    }
+}
+```
+
+## Creating a Carrier
+
+### Basic Information
+
+```php app/Http/Controllers/CarrierController.php
+public function store(CarrierRequest $request)
+{
+    $carrier                = new Carrier;
+    $carrier->name          = $request->carrier_name;
+    $carrier->transit_time  = $request->transit_time;
+    $carrier->logo          = $request->logo;
+    $free_shipping          = isset($request->shipping_type) ? 1 : 0;
+    $carrier->free_shipping = $free_shipping;
+    $carrier->save();
+}
+```
+
+### Carrier Fields
+
+- **Name**: Carrier name (e.g., "FedEx", "DHL", "Local Delivery")
+- **Transit Time**: Expected delivery time (e.g., "2-3 days", "Same day")
+- **Logo**: Upload carrier logo
+- **Free Shipping**: Enable/disable free shipping
+
+## Shipping Pricing
+
+### Free Shipping
+
+If free shipping is enabled, no pricing ranges are needed:
+
+```php
+if($free_shipping == 0){
+    // Add carrier ranges and prices
+}
+```
+
+### Paid Shipping Configuration
+
+For paid shipping, configure ranges and zone-based pricing:
+
+#### Billing Types
+
+1. **By Weight**: Calculate shipping based on order weight
+2. **By Price**: Calculate shipping based on order total
+
+#### Range Configuration
+
+```php app/Http/Controllers/CarrierController.php
+for($i=0; $i < count($request->delimiter1); $i++){
+    // Add Carrier ranges
+    $carrier_range                  = new CarrierRange;
+    $carrier_range->carrier_id      = $carrier->id;
+    $carrier_range->billing_type    = $request->billing_type;
+    $carrier_range->delimiter1      = $request->delimiter1[$i];
+    $carrier_range->delimiter2      = $request->delimiter2[$i];
+    $carrier_range->save();
+
+    // Add carrier range prices for each zone
+    foreach($request->zones as $zone){
+        $carrier_range_price =  new CarrierRangePrice;
+        $carrier_range_price->carrier_id = $carrier->id;
+        $carrier_range_price->carrier_range_id = $carrier_range->id;
+        $carrier_range_price->zone_id = $zone;
+        $carrier_range_price->price = $request->carrier_price[$zone][$i];
+        $carrier_range_price->save();
+    }
+}
+```
+
+### Example: Weight-Based Pricing
+
+| Weight Range | Zone 1 | Zone 2 | Zone 3 |
+|--------------|--------|--------|--------|
+| 0 - 1 kg | $5 | $7 | $10 |
+| 1 - 5 kg | $10 | $15 | $20 |
+| 5 - 10 kg | $20 | $30 | $40 |
+| 10+ kg | $30 | $45 | $60 |
+
+### Example: Price-Based Shipping
+
+| Order Total | Zone 1 | Zone 2 | Zone 3 |
+|-------------|--------|--------|--------|
+| $0 - $50 | $8 | $10 | $15 |
+| $50 - $100 | $6 | $8 | $12 |
+| $100 - $200 | $4 | $6 | $10 |
+| $200+ | Free | Free | $5 |
+
+## Zones Setup
+
+Before configuring carriers, you must set up shipping zones:
+
+<Steps>
+  <Step title="Access Zone Management">
+    Navigate to **Setup & Configurations** → **Shipping** → **Zones**
+  </Step>
+  
+  <Step title="Create Zones">
+    Define geographic zones (e.g., "Local", "National", "International")
+  </Step>
+  
+  <Step title="Assign Countries/States">
+    Add countries or states to each zone
+  </Step>
+</Steps>
+
+## Updating a Carrier
+
+When updating, existing ranges are deleted and recreated:
+
+```php app/Http/Controllers/CarrierController.php
+public function update(CarrierRequest $request, $id)
+{
+    $carrier                = Carrier::findOrfail($id);
+    $carrier->name          = $request->carrier_name;
+    $carrier->transit_time  = $request->transit_time;
+    $carrier->logo          = $request->logo;
+    $free_shipping          = isset($request->shipping_type) ? 1 : 0;
+    $carrier->free_shipping = $free_shipping;
+    $carrier->save();
+
+    // Delete existing ranges and prices
+    $carrier->carrier_ranges()->delete();
+    $carrier->carrier_range_prices()->delete();
+
+    // Recreate ranges if not free shipping
+    if($free_shipping == 0){
+        // Add new ranges and prices
+    }
+}
+```
+
+## Carrier Status
+
+Enable or disable carriers without deleting:
+
+```php app/Http/Controllers/CarrierController.php
+public function updateStatus(Request $request)
+{
+    $carrier = Carrier::findOrFail($request->id);
+    $carrier->status = $request->status;
+    if($carrier->save()){
+        return 1;
+    }
+    return 0;
+}
+```
+
+## Deleting a Carrier
+
+```php app/Http/Controllers/CarrierController.php
+public function destroy($id)
+{
+    $carrier = Carrier::findOrFail($id);
+    
+    // Delete related data
+    $carrier->carrier_ranges()->delete();
+    $carrier->carrier_range_prices()->delete();
+    
+    Carrier::destroy($id);
+
+    flash(translate('Carrier has been deleted successfully'))->success();
+    return redirect()->route('carriers.index');
+}
+```
+
+## Retrieving Active Carriers
+
+Use the `Active` scope to get enabled carriers:
+
+```php
+$active_carriers = Carrier::active()->get();
+```
+
+## Frontend Implementation
+
+At checkout, customers select from available carriers based on:
+
+1. **Delivery Zone**: Determined by shipping address
+2. **Order Weight/Total**: Used to find applicable range
+3. **Carrier Status**: Only active carriers shown
+
+### Shipping Cost Calculation
+
+```php
+// Example calculation logic (implement in CheckoutController)
+$zone = getZoneFromAddress($shipping_address);
+$order_weight = $cart->total_weight;
+
+$carriers = Carrier::active()->get();
+foreach ($carriers as $carrier) {
+    if ($carrier->free_shipping) {
+        $shipping_cost = 0;
+    } else {
+        $range = $carrier->carrier_ranges()
+            ->where('billing_type', 'by_weight')
+            ->where('delimiter1', '<=', $order_weight)
+            ->where('delimiter2', '>=', $order_weight)
+            ->first();
+            
+        if ($range) {
+            $price = $range->carrier_range_prices()
+                ->where('zone_id', $zone->id)
+                ->first();
+            $shipping_cost = $price ? $price->price : 0;
+        }
+    }
+}
+```
+
+## Best Practices
+
+<Warning>
+  **Configuration Tips**
+  
+  - Define clear weight/price ranges without gaps
+  - Set competitive pricing per zone
+  - Keep transit times realistic
+  - Test shipping calculations before going live
+  - Regularly review and update carrier rates
+  - Consider offering free shipping for high-value orders
+</Warning>
+
+## Common Carrier Examples
+
+### Local Delivery Service
+
+- **Name**: Local Same-Day Delivery
+- **Transit Time**: Same day (orders before 2 PM)
+- **Billing Type**: By Price
+- **Zone**: Local zone only
+- **Pricing**: Flat rate or tiered by order value
+
+### National Courier
+
+- **Name**: National Express
+- **Transit Time**: 2-3 business days
+- **Billing Type**: By Weight
+- **Zones**: Multiple national zones
+- **Pricing**: Weight-based with zone multipliers
+
+### International Shipping
+
+- **Name**: International DHL
+- **Transit Time**: 5-7 business days
+- **Billing Type**: By Weight
+- **Zones**: International regions
+- **Pricing**: Higher rates for international zones
+
+### Free Shipping Promotion
+
+- **Name**: Free Standard Shipping
+- **Transit Time**: 5-7 business days
+- **Free Shipping**: Enabled
+- **Conditions**: Minimum order value (set in business rules)
+
+## Permissions
+
+Carrier management requires the `manage_carriers` permission:
+
+```php app/Http/Controllers/CarrierController.php
+public function __construct() {
+    $this->middleware(['permission:manage_carriers'])->only('index','create','edit','destroy');
+}
+```
+
+## API Integration
+
+For mobile apps or custom integrations:
+
+```
+app/Http/Controllers/Api/V2/CarrierController.php
+```
+
+API resource:
+
+```
+app/Http/Resources/V2/CarrierCollection.php
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Shipping Cost Not Calculating">
+    **Check**:
+    - Zone is properly configured
+    - Carrier has pricing for the zone
+    - Weight/price falls within defined ranges
+    - Carrier status is active
+  </Accordion>
+  
+  <Accordion title="Carrier Not Showing at Checkout">
+    **Check**:
+    - Carrier status is enabled
+    - Zone covers customer's shipping address
+    - Applicable ranges exist for order weight/total
+  </Accordion>
+  
+  <Accordion title="Wrong Shipping Price">
+    **Check**:
+    - Correct billing type (weight vs price)
+    - Range delimiters are correct
+    - Zone pricing is configured
+    - No overlapping ranges
+  </Accordion>
+</AccordionGroup>
+
+## Database Tables
+
+### carriers
+
+- id
+- name
+- transit_time
+- logo
+- free_shipping
+- status
+- created_at
+- updated_at
+
+### carrier_ranges
+
+- id
+- carrier_id
+- billing_type (by_weight/by_price)
+- delimiter1 (range start)
+- delimiter2 (range end)
+- created_at
+- updated_at
+
+### carrier_range_prices
+
+- id
+- carrier_id
+- carrier_range_id
+- zone_id
+- price
+- created_at
+- updated_at
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Pickup Points" icon="location-dot" href="/integrations/pickup-points">
+    Configure pickup point locations
+  </Card>
+  <Card title="Delivery Boys" icon="person-biking" href="/integrations/delivery-boys">
+    Manage delivery personnel
+  </Card>
+</CardGroup>

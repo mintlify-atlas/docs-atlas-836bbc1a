@@ -1,122 +1,171 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Ecom",
+  "theme": "almond",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#0961b3",
+    "light": "#4a9de8",
+    "dark": "#064a85"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/programforrever/ecom"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/programforrever/ecom"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
+            "pages": ["introduction", "installation", "configuration"]
+          },
+          {
+            "group": "Setup",
+            "pages": ["setup/environment", "setup/database", "setup/deployment"]
+          }
+        ]
+      },
+      {
+        "tab": "Features",
+        "groups": [
+          {
+            "group": "Core Features",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "features/products",
+              "features/categories-brands",
+              "features/orders",
+              "features/cart-checkout"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Marketing",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "features/flash-deals",
+              "features/coupons",
+              "features/affiliate-program",
+              "features/club-points"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Multi-Vendor",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "features/seller-management",
+              "features/seller-packages",
+              "features/commissions"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Advanced",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "features/wholesale",
+              "features/auction",
+              "features/digital-products",
+              "features/customer-products"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "User Guides",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Admin Guide",
             "pages": [
-              "api-reference/introduction"
+              "admin/dashboard",
+              "admin/product-management",
+              "admin/order-management",
+              "admin/user-management",
+              "admin/business-settings"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Seller Guide",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "seller/getting-started",
+              "seller/shop-setup",
+              "seller/adding-products",
+              "seller/managing-orders",
+              "seller/payments-withdrawals"
+            ]
+          },
+          {
+            "group": "Customer Guide",
+            "pages": [
+              "customer/registration",
+              "customer/shopping",
+              "customer/wallet",
+              "customer/affiliate"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": ["api/overview", "api/authentication"]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/products",
+              "api/cart",
+              "api/orders",
+              "api/user",
+              "api/payments"
+            ]
+          },
+          {
+            "group": "Specialized APIs",
+            "pages": [
+              "api/auction",
+              "api/delivery-boy",
+              "api/chat"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Integrations",
+        "groups": [
+          {
+            "group": "Payment Gateways",
+            "pages": [
+              "integrations/payments-overview",
+              "integrations/stripe",
+              "integrations/paypal",
+              "integrations/razorpay",
+              "integrations/sslcommerz",
+              "integrations/other-gateways"
+            ]
+          },
+          {
+            "group": "Shipping & Delivery",
+            "pages": [
+              "integrations/carriers",
+              "integrations/pickup-points",
+              "integrations/delivery-boys"
+            ]
+          },
+          {
+            "group": "External Services",
+            "pages": [
+              "integrations/social-login",
+              "integrations/sms-otp",
+              "integrations/storage"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

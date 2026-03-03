@@ -1,0 +1,583 @@
+---
+title: Customer Product Listings
+description: Enable customers to list and sell their own products (classified ads) on your marketplace
+---
+
+## Overview
+
+The customer products module (also called classified products) allows regular customers to list items for sale, similar to classified ads. Customers can upload products with their own pricing and manage their listings.
+
+<CardGroup cols={2}>
+  <Card title="Customer Uploads" icon="cloud-arrow-up">
+    Customers and sellers can list their own products
+  </Card>
+  <Card title="Upload Limits" icon="gauge">
+    Control listing limits with customer packages
+  </Card>
+  <Card title="Admin Moderation" icon="shield-check">
+    Approve or reject customer product listings
+  </Card>
+  <Card title="Condition Tags" icon="tags">
+    Mark items as new or used
+  </Card>
+</CardGroup>
+
+## Model Structure
+
+### CustomerProduct Model
+
+The `CustomerProduct` model manages customer-listed products:
+
+```php
+class CustomerProduct extends Model
+{
+    protected $with = ['customer_product_translations'];
+
+    public function getTranslation($field = '', $lang = false)
+    {
+        $lang = $lang == false ? App::getLocale() : $lang;
+        $customer_product_translations = $this->customer_product_translations
+            ->where('lang', $lang)->first();
+        return $customer_product_translations != null ? 
+            $customer_product_translations->$field : $this->$field;
+    }
+
+    public function scopeIsActiveAndApproval($query)
+    {
+        return $query->where('status', '1')
+            ->where('published', '1');
+    }
+
+    public function category()
+    {
+        return $this->belongsTo(Category::class);
+    }
+
+    public function subcategory()
+    {
+        return $this->belongsTo(SubCategory::class);
+    }
+
+    public function subsubcategory()
+    {
+        return $this->belongsTo(SubSubCategory::class);
+    }
+
+    public function brand()
+    {
+        return $this->belongsTo(Brand::class);
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function state()
+    {
+        return $this->belongsTo(State::class);
+    }
+
+    public function city()
+    {
+        return $this->belongsTo(City::class);
+    }
+
+    public function customer_product_translations()
+    {
+        return $this->hasMany(CustomerProductTranslation::class);
+    }
+
+    public function thumbnail()
+    {
+        return $this->belongsTo(Upload::class, 'thumbnail_img');
+    }
+}
+```
+
+**Key Relationships:**
+- `user` - Product owner (customer or seller)
+- `category` - Product category
+- `brand` - Product brand
+- `state` / `city` - Geographic location
+- `customer_product_translations` - Multi-language support
+
+**Important Fields:**
+- `status` - Active/inactive status
+- `published` - Admin approval status
+- `conditon` - New or used condition
+- `location` - Item location
+- `unit_price` - Listing price
+- `remaining_uploads` - User's remaining upload quota
+
+## Permissions
+
+Customer product management uses role-based permissions:
+
+```php
+public function __construct() {
+    $this->middleware(['permission:view_classified_products'])
+        ->only('customer_product_index');
+    $this->middleware(['permission:publish_classified_product'])
+        ->only('updatePublished');
+    $this->middleware(['permission:delete_classified_product'])
+        ->only('destroy_by_admin');
+}
+```
+
+## Feature Enablement
+
+The classified product feature must be enabled in settings:
+
+```php
+if(get_setting('classified_product') != 1){
+    return redirect()->route('dashboard');
+}
+```
+
+## Listing Customer Products
+
+### Customer's Own Products
+
+```php
+public function index()
+{
+    if(get_setting('classified_product') != 1){
+        return redirect()->route('dashboard');
+    }
+    $products = CustomerProduct::where('user_id', Auth::user()->id)
+        ->orderBy('created_at', 'desc')
+        ->paginate(10);
+    return view('frontend.user.customer.products', compact('products'));
+}
+```
+
+### Admin View (All Products)
+
+```php
+public function customer_product_index()
+{
+    $products = CustomerProduct::orderBy('created_at', 'desc')->paginate(10);
+    return view('backend.customer.classified_products.index', compact('products'));
+}
+```
+
+## Creating Customer Products
+
+### Check Upload Limit
+
+Before showing the create form, verify the user has remaining uploads (`app/Http/Controllers/CustomerProductController.php:48`):
+
+```php
+public function create()
+{
+    $categories = Category::where('parent_id', 0)
+        ->where('digital', 0)
+        ->with('childrenCategories')
+        ->get();
+
+    if(Auth::user()->user_type == "customer" && 
+       Auth::user()->remaining_uploads > 0){
+        return view('frontend.user.customer.product_upload', compact('categories'));
+    }
+    elseif (Auth::user()->user_type == "seller" && 
+            Auth::user()->remaining_uploads > 0) {
+        return view('frontend.user.customer.product_upload', compact('categories'));
+    }
+    else{
+        flash(translate('Your classified product upload limit has been reached. Please buy a package.'))->error();
+        return redirect()->route('customer_packages_list_show');
+    }
+}
+```
+
+<Note>
+Both customers and sellers can create customer product listings, but they need available upload quota.
+</Note>
+
+### Store Customer Product
+
+<Steps>
+  <Step title="Validate Upload Quota">
+    Check user has remaining_uploads > 0
+  </Step>
+  <Step title="Create Product Record">
+    Store product with all details and media
+  </Step>
+  <Step title="Process Tags">
+    Parse and store product tags
+  </Step>
+  <Step title="Generate Slug">
+    Create unique URL slug for the product
+  </Step>
+  <Step title="Decrement Quota">
+    Reduce user's remaining_uploads by 1
+  </Step>
+  <Step title="Create Translation">
+    Store product name, unit, and description
+  </Step>
+</Steps>
+
+**Implementation** (`app/Http/Controllers/CustomerProductController.php:73`):
+
+```php
+public function store(Request $request)
+{
+    $customer_product                       = new CustomerProduct;
+    $customer_product->name                 = $request->name;
+    $customer_product->added_by             = $request->added_by;
+    $customer_product->user_id              = Auth::user()->id;
+    $customer_product->category_id          = $request->category_id;
+    $customer_product->brand_id             = $request->brand_id;
+    $customer_product->conditon             = $request->conditon;
+    $customer_product->location             = $request->location;
+    $customer_product->photos               = $request->photos;
+    $customer_product->thumbnail_img        = $request->thumbnail_img;
+    $customer_product->unit                 = $request->unit;
+
+    $tags = array();
+    if($request->tags[0] != null){
+        foreach (json_decode($request->tags[0]) as $key => $tag) {
+            array_push($tags, $tag->value);
+        }
+    }
+
+    $customer_product->tags                 = implode(',', $tags);
+    $customer_product->description          = $request->description;
+    $customer_product->video_provider       = $request->video_provider;
+    $customer_product->video_link           = $request->video_link;
+    $customer_product->unit_price           = $request->unit_price;
+    $customer_product->meta_title           = $request->meta_title;
+    $customer_product->meta_description     = $request->meta_description;
+    $customer_product->meta_img             = $request->meta_img;
+    $customer_product->pdf                  = $request->pdf;
+    $customer_product->slug                 = strtolower(preg_replace('/[^A-Za-z0-9\-]/', '', 
+        str_replace(' ', '-', $request->name)).'-'.Str::random(5));
+        
+    if($customer_product->save()){
+        $user = Auth::user();
+        $user->remaining_uploads -= 1;
+        $user->save();
+
+        $customer_product_translation               = CustomerProductTranslation::firstOrNew([
+            'lang' => env('DEFAULT_LANGUAGE'), 
+            'customer_product_id' => $customer_product->id
+        ]);
+        $customer_product_translation->name         = $request->name;
+        $customer_product_translation->unit         = $request->unit;
+        $customer_product_translation->description  = $request->description;
+        $customer_product_translation->save();
+
+        flash(translate('Product has been inserted successfully'))->success();
+        return redirect()->route('customer_products.index');
+    }
+    else{
+        flash(translate('Something went wrong'))->error();
+        return back();
+    }
+}
+```
+
+## Updating Customer Products
+
+### Edit Form
+
+```php
+public function edit(Request $request, $id)
+{
+    $categories = Category::where('parent_id', 0)
+        ->where('digital', 0)
+        ->with('childrenCategories')
+        ->get();
+    $product    = CustomerProduct::find($id);
+    $lang       = $request->lang;
+    return view('frontend.user.customer.product_edit', 
+        compact('categories', 'product','lang'));
+}
+```
+
+### Update Product
+
+```php
+public function update(Request $request, $id)
+{
+    $customer_product = CustomerProduct::find($id);
+    
+    if($request->lang == env("DEFAULT_LANGUAGE")){
+        $customer_product->name             = $request->name;
+        $customer_product->unit             = $request->unit;
+        $customer_product->description      = $request->description;
+    }
+    
+    $customer_product->status               = '1';
+    $customer_product->user_id              = Auth::user()->id;
+    $customer_product->category_id          = $request->category_id;
+    $customer_product->brand_id             = $request->brand_id;
+    $customer_product->conditon             = $request->conditon;
+    $customer_product->location             = $request->location;
+    $customer_product->photos               = $request->photos;
+    $customer_product->thumbnail_img        = $request->thumbnail_img;
+
+    $tags = array();
+    if($request->tags[0] != null){
+        foreach (json_decode($request->tags[0]) as $key => $tag) {
+            array_push($tags, $tag->value);
+        }
+    }
+
+    $customer_product->tags                 = implode(',', $tags);
+    $customer_product->video_provider       = $request->video_provider;
+    $customer_product->video_link           = $request->video_link;
+    $customer_product->unit_price           = $request->unit_price;
+    $customer_product->meta_title           = $request->meta_title;
+    $customer_product->meta_description     = $request->meta_description;
+    $customer_product->meta_img             = $request->meta_img;
+    $customer_product->pdf                  = $request->pdf;
+    $customer_product->slug                 = strtolower($request->slug);
+    
+    if($customer_product->save()){
+        $customer_product_translation               = CustomerProductTranslation::firstOrNew([
+            'lang' => $request->lang, 
+            'customer_product_id' => $customer_product->id
+        ]);
+        $customer_product_translation->name         = $request->name;
+        $customer_product_translation->unit         = $request->unit;
+        $customer_product_translation->description  = $request->description;
+        $customer_product_translation->save();
+
+        flash(translate('Product has been inserted successfully'))->success();
+        return back();
+    }
+}
+```
+
+## Admin Moderation
+
+### Publish/Unpublish
+
+Admins can control product visibility (`app/Http/Controllers/CustomerProductController.php:246`):
+
+```php
+public function updatePublished(Request $request)
+{
+    $product = CustomerProduct::findOrFail($request->id);
+    $product->published = $request->status;
+    if($product->save()){
+        return 1;
+    }
+    return 0;
+}
+```
+
+### Activate/Deactivate Status
+
+```php
+public function updateStatus(Request $request)
+{
+    $product = CustomerProduct::findOrFail($request->id);
+    $product->status = $request->status;
+    if($product->save()){
+        return 1;
+    }
+    return 0;
+}
+```
+
+## Deleting Products
+
+### Customer Delete
+
+```php
+public function destroy($id)
+{
+    $product = CustomerProduct::findOrFail($id);
+    $product->customer_product_translations()->delete();
+
+    if (CustomerProduct::destroy($id)) {
+        flash(translate('Product has been deleted successfully'))->success();
+        return redirect()->route('customer_products.index');
+    }
+}
+```
+
+### Admin Delete
+
+```php
+public function destroy_by_admin($id)
+{
+    $product = CustomerProduct::findOrFail($id);
+    $product->customer_product_translations()->delete();
+
+    if (CustomerProduct::destroy($id)) {
+        return back();
+    }
+}
+```
+
+## Public Product Views
+
+### Product Details
+
+```php
+public function customer_product($slug)
+{
+    if(get_setting('classified_product') != 1){
+        return redirect('/');
+    }
+    
+    $customer_product  = CustomerProduct::where('slug', $slug)->first();
+    
+    if($customer_product!=null){
+        return view('frontend.customer_product_details', compact('customer_product'));
+    }
+    abort(404);
+}
+```
+
+### Product Listing
+
+Browse all customer products with filters (`app/Http/Controllers/CustomerProductController.php:273`):
+
+```php
+public function search(Request $request)
+{
+    if(get_setting('classified_product') != 1){
+        return redirect('/');
+    }
+
+    $brand_id = (Brand::where('slug', $request->brand)->first() != null) ? 
+        Brand::where('slug', $request->brand)->first()->id : null;
+    $category_id = (Category::where('slug', $request->category)->first() != null) ? 
+        Category::where('slug', $request->category)->first()->id : null;
+    $sort_by = $request->sort_by;
+    $condition = $request->condition;
+
+    $conditions = ['published' => 1, 'status' => 1];
+
+    if($brand_id != null){
+        $conditions = array_merge($conditions, ['brand_id' => $brand_id]);
+    }
+
+    $customer_products = CustomerProduct::where($conditions);
+
+    if($category_id != null){
+        $category_ids = CategoryUtility::children_ids($category_id);
+        $category_ids[] = $category_id;
+        $customer_products = $customer_products->whereIn('category_id', $category_ids);
+    }
+
+    if($sort_by != null){
+        switch ($sort_by) {
+            case '1':
+                $customer_products->orderBy('created_at', 'desc');
+                break;
+            case '2':
+                $customer_products->orderBy('created_at', 'asc');
+                break;
+            case '3':
+                $customer_products->orderBy('unit_price', 'asc');
+                break;
+            case '4':
+                $customer_products->orderBy('unit_price', 'desc');
+                break;
+            case '5':
+                $customer_products->where('conditon', 'new');
+                break;
+            case '6':
+                $customer_products->where('conditon', 'used');
+                break;
+        }
+    }
+
+    if($condition != null){
+        $customer_products->where('conditon', $condition);
+    }
+
+    $customer_products = $customer_products->paginate(12)->appends(request()->query());
+
+    return view('frontend.customer_product_listing', 
+        compact('customer_products', 'category_id', 'brand_id', 'sort_by', 'condition'));
+}
+```
+
+**Available Sort Options:**
+1. Newest first
+2. Oldest first
+3. Price: Low to High
+4. Price: High to Low
+5. New condition only
+6. Used condition only
+
+## Scope Queries
+
+Get only active and approved products:
+
+```php
+$products = CustomerProduct::isActiveAndApproval()->get();
+
+// This returns products where:
+// - status = 1 (active)
+// - published = 1 (approved by admin)
+```
+
+## Customer Packages
+
+Customers purchase packages to get upload credits:
+
+```php
+// Check if user needs to buy package
+if(Auth::user()->remaining_uploads <= 0){
+    flash(translate('Your classified product upload limit has been reached. Please buy a package.'))->error();
+    return redirect()->route('customer_packages_list_show');
+}
+```
+
+## Multi-Language Support
+
+Customer products support translations:
+
+```php
+$customer_product_translation = CustomerProductTranslation::firstOrNew([
+    'lang' => $request->lang, 
+    'customer_product_id' => $customer_product->id
+]);
+$customer_product_translation->name = $request->name;
+$customer_product_translation->unit = $request->unit;
+$customer_product_translation->description = $request->description;
+$customer_product_translation->save();
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Moderate Listings">
+    Review and approve customer products before making them public
+  </Step>
+  <Step title="Set Clear Guidelines">
+    Provide rules for what can and cannot be listed
+  </Step>
+  <Step title="Enforce Upload Limits">
+    Use customer packages to prevent spam and abuse
+  </Step>
+  <Step title="Monitor Quality">
+    Regularly review listings for quality and compliance
+  </Step>
+  <Step title="Enable Reporting">
+    Allow users to report inappropriate listings
+  </Step>
+</Steps>
+
+<Warning>
+Always validate and sanitize user-uploaded content to prevent XSS and other security issues.
+</Warning>
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Seller Management" href="/features/seller-management">
+    Full vendor accounts with shops and products
+  </Card>
+  <Card title="Digital Products" href="/features/digital-products">
+    Sell downloadable digital goods
+  </Card>
+</CardGroup>

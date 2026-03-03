@@ -1,0 +1,259 @@
+---
+title: Installation
+description: Complete guide to installing Ecom e-commerce platform
+---
+
+## Prerequisites
+
+Before installing Ecom, ensure your system meets the following requirements:
+
+<Info>
+**System Requirements:**
+- PHP >= 8.0.2
+- Composer
+- MySQL >= 5.7 or PostgreSQL >= 9.6
+- Node.js >= 14.x and NPM
+- Web server (Apache/Nginx)
+</Info>
+
+### Required PHP Extensions
+
+The following PHP extensions must be installed and enabled:
+
+- OpenSSL PHP Extension
+- PDO PHP Extension
+- Mbstring PHP Extension
+- Tokenizer PHP Extension
+- XML PHP Extension
+- Ctype PHP Extension
+- JSON PHP Extension
+- BCMath PHP Extension
+- Fileinfo PHP Extension
+- GD PHP Extension
+
+## Installation Steps
+
+<Steps>
+  <Step title="Clone or Download the Repository">
+    Download the Ecom source code to your local machine or server.
+    
+    ```bash
+    # If using git
+    git clone <repository-url> ecom
+    cd ecom
+    ```
+  </Step>
+
+  <Step title="Install PHP Dependencies">
+    Install all required PHP packages using Composer:
+    
+    ```bash
+    composer install
+    ```
+    
+    This will install all dependencies defined in `composer.json`, including:
+    - Laravel Framework 9.2
+    - Payment gateway packages (Stripe, PayPal, Razorpay, etc.)
+    - Image processing (Intervention Image)
+    - PDF generation (mPDF, Laravel PDF)
+    - Excel support (Maatwebsite Excel)
+    - And 30+ other packages
+    
+    <Note>
+    The installation may take several minutes depending on your internet connection.
+    </Note>
+  </Step>
+
+  <Step title="Create Environment File">
+    Copy the example environment file and configure it:
+    
+    ```bash
+    cp .env.example .env
+    ```
+    
+    The `.env` file will be automatically created if it doesn't exist during the post-install process.
+  </Step>
+
+  <Step title="Generate Application Key">
+    Generate a unique application encryption key:
+    
+    ```bash
+    php artisan key:generate
+    ```
+    
+    <Warning>
+    This key is used by Laravel's encrypter service. Keep this key secure and never commit it to version control.
+    </Warning>
+    
+    The key will be automatically set in your `.env` file as `APP_KEY`.
+  </Step>
+
+  <Step title="Configure Database">
+    Edit your `.env` file and update the database configuration:
+    
+    ```bash
+    DB_CONNECTION=mysql
+    DB_HOST=127.0.0.1
+    DB_PORT=3306
+    DB_DATABASE=your_database_name
+    DB_USERNAME=your_database_user
+    DB_PASSWORD=your_database_password
+    ```
+    
+    <Info>
+    Ecom supports multiple database systems:
+    - MySQL (recommended)
+    - PostgreSQL
+    - SQLite
+    - SQL Server
+    </Info>
+  </Step>
+
+  <Step title="Run Database Migrations">
+    Create all necessary database tables:
+    
+    ```bash
+    php artisan migrate
+    ```
+    
+    This will create tables including:
+    - `users` - User accounts
+    - `products` - Product catalog
+    - `product_queries` - Customer questions
+    - `password_resets` - Password reset tokens
+    - And many more e-commerce tables
+  </Step>
+
+  <Step title="Seed Database (Optional)">
+    If you want to populate the database with sample data:
+    
+    ```bash
+    php artisan db:seed
+    ```
+    
+    <Note>
+    Seeding is optional and typically used for development/testing environments.
+    </Note>
+  </Step>
+
+  <Step title="Set Proper Permissions">
+    Set the correct file permissions for storage and cache:
+    
+    ```bash
+    chmod -R 775 storage bootstrap/cache
+    chown -R www-data:www-data storage bootstrap/cache
+    ```
+    
+    <Warning>
+    Proper permissions are critical for file uploads, caching, and logging.
+    </Warning>
+  </Step>
+
+  <Step title="Install Frontend Dependencies (Optional)">
+    If you plan to modify frontend assets, install Node.js dependencies:
+    
+    ```bash
+    npm install
+    npm run dev
+    ```
+    
+    For production builds:
+    
+    ```bash
+    npm run production
+    ```
+  </Step>
+
+  <Step title="Clear Configuration Cache">
+    Clear and rebuild the configuration cache:
+    
+    ```bash
+    php artisan config:clear
+    php artisan cache:clear
+    php artisan view:clear
+    ```
+  </Step>
+
+  <Step title="Start Development Server">
+    For local development, start the Laravel development server:
+    
+    ```bash
+    php artisan serve
+    ```
+    
+    Your application will be available at `http://localhost:8000`
+    
+    <Info>
+    For production deployment, see the [Deployment Guide](/setup/deployment).
+    </Info>
+  </Step>
+</Steps>
+
+## Post-Installation
+
+After successful installation:
+
+1. Visit your application URL
+2. Complete the initial setup wizard (if available)
+3. Configure payment gateways in the admin panel
+4. Set up email configuration
+5. Configure storage settings
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Composer install fails">
+    Ensure you have PHP 8.0.2 or higher installed:
+    ```bash
+    php -v
+    ```
+    
+    Update Composer to the latest version:
+    ```bash
+    composer self-update
+    ```
+  </Accordion>
+
+  <Accordion title="Permission denied errors">
+    Make sure the web server user has write access to storage and cache directories:
+    ```bash
+    sudo chown -R www-data:www-data storage bootstrap/cache
+    sudo chmod -R 775 storage bootstrap/cache
+    ```
+  </Accordion>
+
+  <Accordion title="Migration errors">
+    Ensure your database exists and credentials are correct in `.env`:
+    ```bash
+    # Test database connection
+    php artisan migrate:status
+    ```
+  </Accordion>
+
+  <Accordion title="500 Internal Server Error">
+    Check your web server error logs and ensure:
+    - Storage directory is writable
+    - APP_KEY is set in `.env`
+    - All required PHP extensions are installed
+    ```bash
+    php artisan optimize:clear
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Configure application settings
+  </Card>
+  <Card title="Environment Setup" icon="server" href="/setup/environment">
+    Set up environment variables
+  </Card>
+  <Card title="Database Setup" icon="database" href="/setup/database">
+    Learn about database configuration
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/setup/deployment">
+    Deploy to production
+  </Card>
+</CardGroup>

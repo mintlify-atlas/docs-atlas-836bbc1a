@@ -1,0 +1,181 @@
+---
+title: 'Payment Gateways Overview'
+description: 'Overview of payment gateway integrations in Ecom'
+---
+
+## Supported Payment Gateways
+
+Ecom supports a wide range of payment gateways to accommodate customers worldwide. All payment integrations follow a consistent pattern and support multiple payment types:
+
+- Cart payment
+- Wallet recharge
+- Customer package purchase
+- Seller package purchase
+
+### Available Gateways
+
+<CardGroup cols={2}>
+  <Card title="Stripe" icon="stripe" href="/integrations/stripe">
+    International credit/debit card processing
+  </Card>
+  <Card title="PayPal" icon="paypal" href="/integrations/paypal">
+    Global payment processing platform
+  </Card>
+  <Card title="Razorpay" icon="landmark" href="/integrations/razorpay">
+    Indian payment gateway
+  </Card>
+  <Card title="SSLCommerz" icon="lock" href="/integrations/sslcommerz">
+    Bangladesh payment gateway
+  </Card>
+  <Card title="Paystack" icon="layer-group" href="/integrations/other-gateways">
+    African payment gateway
+  </Card>
+  <Card title="Other Gateways" icon="credit-card" href="/integrations/other-gateways">
+    Instamojo, Authorize.net, and more
+  </Card>
+</CardGroup>
+
+## Payment Flow Architecture
+
+All payment controllers in Ecom follow this standardized flow:
+
+### 1. Payment Initiation
+
+Payments are initiated from the checkout process with session data:
+
+```php
+// Session stores payment context
+Session::put('payment_type', 'cart_payment');
+Session::put('combined_order_id', $order->id);
+```
+
+### 2. Payment Processing
+
+Each gateway controller implements these key methods:
+
+- `pay()` - Initiates payment with gateway
+- `success()` - Handles successful payment callback
+- `cancel()/fail()` - Handles payment cancellation/failure
+
+### 3. Payment Completion
+
+After successful payment, the appropriate controller method is called:
+
+```php
+if ($payment_type == 'cart_payment') {
+    return (new CheckoutController)->checkout_done($order_id, $payment_details);
+} elseif ($payment_type == 'wallet_payment') {
+    return (new WalletController)->wallet_payment_done($payment_data, $payment_details);
+}
+```
+
+## Common Environment Variables
+
+Most payment gateways require API credentials in `.env`:
+
+```bash
+# Gateway credentials
+GATEWAY_API_KEY=your_api_key
+GATEWAY_SECRET_KEY=your_secret_key
+
+# Sandbox/Production mode
+GATEWAY_SANDBOX=true
+
+# Currency settings
+SYSTEM_DEFAULT_CURRENCY=1
+```
+
+## Payment Types Supported
+
+### Cart Payment
+
+Standard checkout payment for product orders:
+
+```php
+if (Session::get('payment_type') == 'cart_payment') {
+    $combined_order = CombinedOrder::findOrFail(Session::get('combined_order_id'));
+    $amount = $combined_order->grand_total;
+}
+```
+
+### Wallet Payment
+
+Customer wallet recharge:
+
+```php
+if (Session::get('payment_type') == 'wallet_payment') {
+    $amount = Session::get('payment_data')['amount'];
+}
+```
+
+### Package Payments
+
+Customer or seller package purchases:
+
+```php
+if (Session::get('payment_type') == 'customer_package_payment') {
+    $customer_package = CustomerPackage::findOrFail(Session::get('payment_data')['customer_package_id']);
+    $amount = $customer_package->amount;
+}
+```
+
+## Security Best Practices
+
+<Warning>
+  **Never commit API keys to version control**
+  
+  Always use environment variables for sensitive credentials:
+  - Keep `.env` out of git (add to `.gitignore`)
+  - Use different credentials for development/production
+  - Rotate API keys regularly
+  - Enable webhook signature verification where available
+</Warning>
+
+## Testing Payment Integrations
+
+### Sandbox Mode
+
+Most gateways provide sandbox environments:
+
+```php
+if (get_setting('paypal_sandbox') == 1) {
+    $environment = new SandboxEnvironment($clientId, $clientSecret);
+} else {
+    $environment = new ProductionEnvironment($clientId, $clientSecret);
+}
+```
+
+### Test Cards
+
+Use gateway-provided test cards in sandbox mode:
+
+- **Stripe**: `4242 4242 4242 4242`
+- **Razorpay**: Any valid card number in test mode
+- **PayPal**: Use sandbox account credentials
+
+## Gateway Comparison
+
+| Gateway | Regions | Currencies | Settlement Time | Fees |
+|---------|---------|------------|-----------------|------|
+| Stripe | Global | 135+ | 2-7 days | 2.9% + 30¢ |
+| PayPal | Global | 25+ | 1-3 days | 2.9% + 30¢ |
+| Razorpay | India | INR | 2-3 days | 2% |
+| SSLCommerz | Bangladesh | BDT | 2-3 days | 2-3% |
+| Paystack | Africa | NGN, GHS, ZAR | 1-3 days | 1.5-2% |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configure Stripe" icon="stripe" href="/integrations/stripe">
+    Set up Stripe payment integration
+  </Card>
+  <Card title="Configure PayPal" icon="paypal" href="/integrations/paypal">
+    Set up PayPal payment integration
+  </Card>
+  <Card title="Configure Razorpay" icon="landmark" href="/integrations/razorpay">
+    Set up Razorpay for Indian payments
+  </Card>
+  <Card title="Other Gateways" icon="credit-card" href="/integrations/other-gateways">
+    Explore additional payment options
+  </Card>
+</CardGroup>

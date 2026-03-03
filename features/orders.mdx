@@ -1,0 +1,539 @@
+---
+title: Order Management
+description: Comprehensive order processing system with status tracking, payments, and delivery management
+---
+
+## Overview
+
+The Ecom platform provides a complete order management system that handles order creation from cart, payment processing, delivery tracking, refunds, and seller management. Orders support multiple shipping methods, payment types, and delivery options.
+
+<CardGroup cols={2}>
+  <Card title="Order Processing" icon="shopping-cart">
+    Automatic order creation from cart with inventory management
+  </Card>
+  <Card title="Multi-Vendor Support" icon="store">
+    Separate orders per seller with commission tracking
+  </Card>
+  <Card title="Delivery Tracking" icon="truck">
+    Real-time delivery status with carrier and delivery boy assignment
+  </Card>
+  <Card title="Payment Management" icon="credit-card">
+    Multiple payment methods with status tracking
+  </Card>
+</CardGroup>
+
+## Order Model
+
+The `Order` model represents individual orders within a combined order.
+
+### Order Relationships
+
+<AccordionGroup>
+  <Accordion title="Order Details">
+    Each order contains multiple order detail items:
+
+    ```php
+    public function orderDetails()
+    {
+        return $this->hasMany(OrderDetail::class);
+    }
+    ```
+
+    **Location:** `~/workspace/source/app/Models/Order.php:9-12`
+
+    Order details store individual product information including:
+    - Product ID and variation
+    - Price and tax per item
+    - Quantity ordered
+    - Shipping costs
+    - Delivery and payment status per item
+  </Accordion>
+
+  <Accordion title="Customer & Seller">
+    Orders link customers and sellers:
+
+    ```php
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function shop()
+    {
+        return $this->hasOne(Shop::class, 'user_id', 'seller_id');
+    }
+    ```
+
+    **Location:** `~/workspace/source/app/Models/Order.php:19-27`
+
+    The `user` relationship identifies the customer, while `shop` identifies the seller's shop.
+  </Accordion>
+
+  <Accordion title="Shipping Options">
+    Orders support multiple shipping configurations:
+
+    ```php
+    public function pickup_point()
+    {
+        return $this->belongsTo(PickupPoint::class);
+    }
+
+    public function carrier()
+    {
+        return $this->belongsTo(Carrier::class);
+    }
+
+    public function delivery_boy()
+    {
+        return $this->belongsTo(User::class, 'assign_delivery_boy', 'id');
+    }
+    ```
+
+    **Location:** `~/workspace/source/app/Models/Order.php:29-52`
+
+    **Shipping Types:**
+    - Home delivery with delivery boy assignment
+    - Pickup point selection
+    - Carrier-based shipping
+  </Accordion>
+
+  <Accordion title="Refunds & Returns">
+    Refund request management:
+
+    ```php
+    public function refund_requests()
+    {
+        return $this->hasMany(RefundRequest::class);
+    }
+    ```
+
+    **Location:** `~/workspace/source/app/Models/Order.php:14-17`
+  </Accordion>
+
+  <Accordion title="Affiliate & Loyalty">
+    Support for affiliate commissions and club points:
+
+    ```php
+    public function affiliate_log()
+    {
+        return $this->hasMany(AffiliateLog::class);
+    }
+
+    public function club_point()
+    {
+        return $this->hasMany(ClubPoint::class);
+    }
+    ```
+
+    **Location:** `~/workspace/source/app/Models/Order.php:39-47`
+  </Accordion>
+</AccordionGroup>
+
+## Order Creation
+
+The `OrderController` creates orders from cart items during checkout.
+
+### Store Method
+
+```php
+public function store(Request $request)
+{
+    $carts = Cart::where('user_id', Auth::user()->id)->get();
+
+    if ($carts->isEmpty()) {
+        flash(translate('Your cart is empty'))->warning();
+        return redirect()->route('home');
+    }
+
+    $address = Address::where('id', $carts[0]['address_id'])->first();
+
+    // Create shipping address array
+    $shippingAddress = [];
+    if ($address != null) {
+        $shippingAddress['name']        = Auth::user()->name;
+        $shippingAddress['email']       = Auth::user()->email;
+        $shippingAddress['address']     = $address->address;
+        $shippingAddress['country']     = $address->country->name;
+        $shippingAddress['state']       = $address->state->name;
+        $shippingAddress['city']        = $address->city->name;
+        $shippingAddress['postal_code']  = $address->postal_code;
+        $shippingAddress['phone']       = $address->phone;
+        if ($address->latitude || $address->longitude) {
+            $shippingAddress['lat_lang'] = $address->latitude . ',' . $address->longitude;
+        }
+    }
+
+    // Create combined order
+    $combined_order = new CombinedOrder;
+    $combined_order->user_id = Auth::user()->id;
+    $combined_order->shipping_address = json_encode($shippingAddress);
+    $combined_order->save();
+
+    // Group cart items by seller
+    $seller_products = array();
+    foreach ($carts as $cartItem) {
+        $product_ids = array();
+        $product = Product::find($cartItem['product_id']);
+        if (isset($seller_products[$product->user_id])) {
+            $product_ids = $seller_products[$product->user_id];
+        }
+        array_push($product_ids, $cartItem);
+        $seller_products[$product->user_id] = $product_ids;
+    }
+
+    // Create separate order for each seller
+    foreach ($seller_products as $seller_product) {
+        $order = new Order;
+        $order->combined_order_id = $combined_order->id;
+        $order->user_id = Auth::user()->id;
+        $order->shipping_address = $combined_order->shipping_address;
+        $order->additional_info = $request->additional_info;
+        $order->payment_type = $request->payment_option;
+        $order->delivery_viewed = '0';
+        $order->payment_status_viewed = '0';
+        $order->code = date('Ymd-His') . rand(10, 99);
+        $order->date = strtotime('now');
+        $order->save();
+
+        // Process order details...
+    }
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/OrderController.php:136-302`
+
+### Key Order Creation Steps
+
+1. **Validate cart** - Ensure cart is not empty
+2. **Create combined order** - Parent order containing all seller orders
+3. **Group by seller** - Separate cart items by product owner
+4. **Create seller orders** - One order per seller
+5. **Process order details** - Individual line items
+6. **Update inventory** - Reduce stock quantities
+7. **Calculate totals** - Subtotal, tax, shipping, discounts
+8. **Apply coupons** - Discount codes if applicable
+9. **Send notifications** - Notify customer and sellers
+
+## Order Details Processing
+
+```php
+foreach ($seller_product as $cartItem) {
+    $product = Product::find($cartItem['product_id']);
+
+    $subtotal += cart_product_price($cartItem, $product, false, false) * $cartItem['quantity'];
+    $tax += cart_product_tax($cartItem, $product, false) * $cartItem['quantity'];
+    $coupon_discount += $cartItem['discount'];
+
+    $product_variation = $cartItem['variation'];
+    $product_stock = $product->stocks->where('variant', $product_variation)->first();
+    
+    // Check stock availability
+    if ($product->digital != 1 && $cartItem['quantity'] > $product_stock->qty) {
+        flash(translate('The requested quantity is not available for ') . $product->getTranslation('name'))->warning();
+        $order->delete();
+        return redirect()->route('cart')->send();
+    } elseif ($product->digital != 1) {
+        // Reduce stock
+        $product_stock->qty -= $cartItem['quantity'];
+        $product_stock->save();
+    }
+
+    // Create order detail
+    $order_detail = new OrderDetail;
+    $order_detail->order_id = $order->id;
+    $order_detail->seller_id = $product->user_id;
+    $order_detail->product_id = $product->id;
+    $order_detail->variation = $product_variation;
+    $order_detail->price = cart_product_price($cartItem, $product, false, false) * $cartItem['quantity'];
+    $order_detail->tax = cart_product_tax($cartItem, $product, false) * $cartItem['quantity'];
+    $order_detail->shipping_type = $cartItem['shipping_type'];
+    $order_detail->product_referral_code = $cartItem['product_referral_code'];
+    $order_detail->shipping_cost = $cartItem['shipping_cost'];
+    $order_detail->quantity = $cartItem['quantity'];
+    
+    if (addon_is_activated('club_point')) {
+        $order_detail->earn_point = $product->earn_point;
+    }
+    
+    $order_detail->save();
+
+    // Update product sales count
+    $product->num_of_sale += $cartItem['quantity'];
+    $product->save();
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/OrderController.php:208-276`
+
+## Order Listing & Filtering
+
+The order listing supports multiple views and filters:
+
+```php
+public function all_orders(Request $request)
+{
+    $orders = Order::orderBy('id', 'desc');
+    $admin_user_id = User::where('user_type', 'admin')->first()->id;
+
+    // Filter by route
+    if (Route::currentRouteName() == 'inhouse_orders.index') {
+        $orders = $orders->where('orders.seller_id', '=', $admin_user_id);
+    } else if (Route::currentRouteName() == 'seller_orders.index') {
+        $orders = $orders->where('orders.seller_id', '!=', $admin_user_id);
+    } else if (Route::currentRouteName() == 'pick_up_point.index') {
+        $orders->where('shipping_type', 'pickup_point');
+    }
+
+    // Search by order code
+    if ($request->search) {
+        $sort_search = $request->search;
+        $orders = $orders->where('code', 'like', '%' . $sort_search . '%');
+    }
+    
+    // Filter by payment status
+    if ($request->payment_status != null) {
+        $orders = $orders->where('payment_status', $request->payment_status);
+    }
+    
+    // Filter by delivery status
+    if ($request->delivery_status != null) {
+        $orders = $orders->where('delivery_status', $request->delivery_status);
+    }
+    
+    // Filter by date range
+    if ($date != null) {
+        $orders = $orders->where('created_at', '>=', date('Y-m-d', strtotime(explode(" to ", $date)[0])) . ' 00:00:00')
+            ->where('created_at', '<=', date('Y-m-d', strtotime(explode(" to ", $date)[1])) . ' 23:59:59');
+    }
+    
+    $orders = $orders->paginate(15);
+    return view('backend.sales.index', compact('orders', 'sort_search', 'payment_status', 'delivery_status', 'date'));
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/OrderController.php:38-105`
+
+## Delivery Status Management
+
+```php
+public function update_delivery_status(Request $request)
+{
+    $order = Order::findOrFail($request->order_id);
+    $order->delivery_viewed = '0';
+    $order->delivery_status = $request->status;
+    $order->save();
+
+    // Refund for cancelled orders with wallet payment
+    if ($request->status == 'cancelled' && $order->payment_type == 'wallet') {
+        $user = User::where('id', $order->user_id)->first();
+        $user->balance += $order->grand_total;
+        $user->save();
+    }
+
+    // Update order details
+    foreach ($order->orderDetails as $key => $orderDetail) {
+        $orderDetail->delivery_status = $request->status;
+        $orderDetail->save();
+
+        // Restore stock for cancelled items
+        if ($request->status == 'cancelled') {
+            $variant = $orderDetail->variation ?? '';
+            $product_stock = ProductStock::where('product_id', $orderDetail->product_id)
+                ->where('variant', $variant)
+                ->first();
+
+            if ($product_stock != null) {
+                $product_stock->qty += $orderDetail->quantity;
+                $product_stock->save();
+            }
+        }
+    }
+
+    // Send notifications
+    NotificationUtility::sendNotification($order, $request->status);
+    
+    // Firebase push notification
+    if (get_setting('google_firebase') == 1 && $order->user->device_token != null) {
+        $request->device_token = $order->user->device_token;
+        $request->title = "Order updated !";
+        $status = str_replace("_", "", $order->delivery_status);
+        $request->text = " Your order {$order->code} has been {$status}";
+        NotificationUtility::sendFirebaseNotification($request);
+    }
+
+    return 1;
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/OrderController.php:384-494`
+
+### Delivery Statuses
+
+- **Pending** - Order placed, awaiting processing
+- **Confirmed** - Order confirmed by seller
+- **Picked** - Order picked from warehouse
+- **On the way** - Out for delivery
+- **Delivered** - Successfully delivered
+- **Cancelled** - Order cancelled (stock restored)
+
+## Payment Status Management
+
+```php
+public function update_payment_status(Request $request)
+{
+    $order = Order::findOrFail($request->order_id);
+    $order->payment_status_viewed = '0';
+    $order->save();
+
+    // Update order details payment status
+    foreach ($order->orderDetails as $key => $orderDetail) {
+        $orderDetail->payment_status = $request->status;
+        $orderDetail->save();
+    }
+
+    // Check if all items are paid
+    $status = 'paid';
+    foreach ($order->orderDetails as $key => $orderDetail) {
+        if ($orderDetail->payment_status != 'paid') {
+            $status = 'unpaid';
+        }
+    }
+    $order->payment_status = $status;
+    $order->save();
+
+    // Calculate commission, affiliation, club points
+    if ($order->payment_status == 'paid' && $order->commission_calculated == 0) {
+        calculateCommissionAffilationClubPoint($order);
+    }
+
+    // Send notifications
+    NotificationUtility::sendNotification($order, $request->status);
+    
+    return 1;
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/OrderController.php:505-563`
+
+## Delivery Boy Assignment
+
+```php
+public function assign_delivery_boy(Request $request)
+{
+    if (addon_is_activated('delivery_boy')) {
+        $order = Order::findOrFail($request->order_id);
+        $order->assign_delivery_boy = $request->delivery_boy;
+        $order->delivery_history_date = date("Y-m-d H:i:s");
+        $order->save();
+
+        $delivery_history = \App\Models\DeliveryHistory::where('order_id', $order->id)
+            ->where('delivery_status', $order->delivery_status)
+            ->first();
+
+        if (empty($delivery_history)) {
+            $delivery_history = new \App\Models\DeliveryHistory;
+            $delivery_history->order_id = $order->id;
+            $delivery_history->delivery_status = $order->delivery_status;
+            $delivery_history->payment_type = $order->payment_type;
+        }
+        $delivery_history->delivery_boy_id = $request->delivery_boy;
+        $delivery_history->save();
+
+        // Send email notification
+        if (env('MAIL_USERNAME') != null && get_setting('delivery_boy_mail_notification') == '1') {
+            $array['view'] = 'emails.invoice';
+            $array['subject'] = translate('You are assigned to delivery an order. Order code') . ' - ' . $order->code;
+            $array['from'] = env('MAIL_FROM_ADDRESS');
+            $array['order'] = $order;
+            Mail::to($order->delivery_boy->email)->queue(new InvoiceEmailManager($array));
+        }
+
+        // Send SMS notification
+        if (addon_is_activated('otp_system') && SmsTemplate::where('identifier', 'assign_delivery_boy')->first()->status == 1) {
+            SmsUtility::assign_delivery_boy($order->delivery_boy->phone, $order->code);
+        }
+    }
+
+    return 1;
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/OrderController.php:565-611`
+
+## Order Deletion
+
+```php
+public function destroy($id)
+{
+    $order = Order::findOrFail($id);
+    if ($order != null) {
+        foreach ($order->orderDetails as $key => $orderDetail) {
+            // Restore product stock
+            $product_stock = ProductStock::where('product_id', $orderDetail->product_id)
+                ->where('variant', $orderDetail->variation)
+                ->first();
+            if ($product_stock != null) {
+                $product_stock->qty += $orderDetail->quantity;
+                $product_stock->save();
+            }
+
+            $orderDetail->delete();
+        }
+        $order->delete();
+        flash(translate('Order has been deleted successfully'))->success();
+    } else {
+        flash(translate('Something went wrong'))->error();
+    }
+    return back();
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/OrderController.php:341-364`
+
+## Tracking Code Update
+
+```php
+public function update_tracking_code(Request $request)
+{
+    $order = Order::findOrFail($request->order_id);
+    $order->tracking_code = $request->tracking_code;
+    $order->save();
+    return 1;
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/OrderController.php:496-503`
+
+## Order Features
+
+<CardGroup cols={3}>
+  <Card title="Multi-Vendor" icon="store">
+    Automatic order splitting by seller
+  </Card>
+  <Card title="Stock Management" icon="boxes">
+    Real-time inventory updates on order
+  </Card>
+  <Card title="Refund Support" icon="money-bill-wave">
+    Wallet refunds for cancellations
+  </Card>
+  <Card title="Notifications" icon="bell">
+    Email, SMS, and push notifications
+  </Card>
+  <Card title="Commission Tracking" icon="percentage">
+    Automatic commission calculation
+  </Card>
+  <Card title="Affiliate Integration" icon="users">
+    Referral code tracking per product
+  </Card>
+</CardGroup>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Cart & Checkout" href="/features/cart-checkout">
+    Understand how orders are created from cart
+  </Card>
+  <Card title="Product Management" href="/features/products">
+    Learn about product stock management
+  </Card>
+</CardGroup>

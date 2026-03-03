@@ -1,0 +1,469 @@
+---
+title: Digital Products
+description: Sell and deliver downloadable digital products like ebooks, software, and media files
+---
+
+## Overview
+
+The digital products module enables selling downloadable files like ebooks, software, music, and digital assets. Products are marked as digital and customers receive download links after purchase.
+
+<CardGroup cols={2}>
+  <Card title="File Management" icon="file-arrow-down">
+    Upload and manage digital product files
+  </Card>
+  <Card title="Automated Delivery" icon="paper-plane">
+    Customers get download links after purchase
+  </Card>
+  <Card title="Digital Categories" icon="folder">
+    Separate category structure for digital goods
+  </Card>
+  <Card title="Admin Download" icon="shield">
+    Admins can download files for testing
+  </Card>
+</CardGroup>
+
+## Model Structure
+
+### Product Model
+
+Digital products use the standard `Product` model with digital-specific fields:
+
+```php
+class Product extends Model
+{
+    public function scopePhysical($query)
+    {
+        return $query->where('digital', 0);
+    }
+
+    public function scopeDigital($query)
+    {
+        return $query->where('digital', 1);
+    }
+}
+```
+
+**Digital Product Fields:**
+- `digital` - Boolean flag (1 for digital products)
+- `file_name` - Upload ID of the digital file
+- `name` - Product name
+- `description` - Product description
+- `unit_price` - Price of digital product
+
+## Controller Overview
+
+The `DigitalProductController` manages digital product CRUD operations with strict permissions:
+
+```php
+public function __construct()
+{
+    // Staff Permission Check
+    $this->middleware(['permission:show_digital_products'])->only('index');
+    $this->middleware(['permission:add_digital_product'])->only('create');
+    $this->middleware(['permission:edit_digital_product'])->only('edit');
+    $this->middleware(['permission:delete_digital_product'])->only('destroy');
+    $this->middleware(['permission:download_digital_product'])->only('download');
+}
+```
+
+## Listing Digital Products
+
+Admin can view all digital products with search functionality (`app/Http/Controllers/DigitalProductController.php:35`):
+
+```php
+public function index(Request $request)
+{
+    $sort_search    = null;
+    $products       = Product::query();
+    $products->where('added_by', 'admin');
+    
+    if ($request->has('search')) {
+        $sort_search    = $request->search;
+        $products       = $products->where('name', 'like', '%' . $sort_search . '%');
+    }
+    
+    $products = $products->where('digital', 1)
+        ->orderBy('created_at', 'desc')
+        ->paginate(10);
+        
+    $type = 'Admin';
+    return view('backend.product.digital_products.index', 
+        compact('products', 'sort_search', 'type'));
+}
+```
+
+## Creating Digital Products
+
+### Form Setup
+
+Load digital categories for product creation (`app/Http/Controllers/DigitalProductController.php:54`):
+
+```php
+public function create()
+{
+    $categories = Category::where('parent_id', 0)
+        ->where('digital', 1)
+        ->with('childrenCategories')
+        ->get();
+    return view('backend.product.digital_products.create', compact('categories'));
+}
+```
+
+<Note>
+Digital products can only be assigned to categories marked as digital (`digital = 1`).
+</Note>
+
+### Store Digital Product
+
+<Steps>
+  <Step title="Validate Request">
+    Use ProductRequest to validate product data
+  </Step>
+  <Step title="Create Product">
+    ProductService stores the product with digital flag
+  </Step>
+  <Step title="Set Stock to Zero">
+    Digital products don't have physical inventory
+  </Step>
+  <Step title="Attach Categories">
+    Link product to selected digital categories
+  </Step>
+  <Step title="Add Tax">
+    Configure VAT and tax if applicable
+  </Step>
+  <Step title="Create Translation">
+    Store product name, unit, and description
+  </Step>
+</Steps>
+
+**Implementation** (`app/Http/Controllers/DigitalProductController.php:69`):
+
+```php
+public function store(ProductRequest $request)
+{
+    // Product Store
+    $product = (new ProductService)->store($request->except([
+        '_token', 'tax_id', 'tax', 'tax_type'
+    ]));
+
+    $request->merge(['product_id' => $product->id, 'current_stock' => 0]);
+
+    //Product categories
+    $product->categories()->attach($request->category_ids);
+
+    //Product Stock
+    (new ProductStockService)->store($request->only([
+        'unit_price', 'current_stock', 'product_id'
+    ]), $product);
+
+    //VAT & Tax
+    if ($request->tax_id) {
+        (new ProductTaxService)->store($request->only([
+            'tax_id', 'tax', 'tax_type', 'product_id'
+        ]));
+    }
+
+    // Product Translations
+    $request->merge(['lang' => env('DEFAULT_LANGUAGE')]);
+    ProductTranslation::create($request->only([
+        'lang', 'name', 'unit', 'description', 'product_id'
+    ]));
+
+    flash(translate('Product has been inserted successfully'))->success();
+
+    Artisan::call('view:clear');
+    Artisan::call('cache:clear');
+    return redirect()->route('digitalproducts.index');
+}
+```
+
+<Warning>
+Digital products always have `current_stock = 0` since they are unlimited digital downloads.
+</Warning>
+
+## Editing Digital Products
+
+### Load Edit Form
+
+```php
+public function edit(Request $request, $id)
+{
+    $lang = $request->lang;
+    $product = Product::findOrFail($id);
+    $categories = Category::where('parent_id', 0)
+        ->where('digital', 1)
+        ->with('childrenCategories')
+        ->get();
+    return view('backend.product.digital_products.edit', 
+        compact('product', 'lang', 'categories'));
+}
+```
+
+### Update Digital Product
+
+```php
+public function update(ProductRequest $request, $id)
+{
+    $product = Product::findOrFail($id);
+
+    //Product Update
+    $product = (new ProductService)->update($request->except([
+         '_token', 'tax_id', 'tax', 'tax_type'
+     ]), $product);
+
+    //Product Stock
+    foreach ($product->stocks as $key => $stock) {
+        $stock->delete();
+    }
+
+    $request->merge(['product_id' => $product->id,'current_stock' => 0]);
+
+    //Product categories
+    $product->categories()->sync($request->category_ids);
+
+    (new ProductStockService)->store($request->only([
+        'unit_price', 'current_stock', 'product_id'
+    ]), $product);
+
+    //VAT & Tax
+    if ($request->tax_id) {
+        ProductTax::where('product_id', $product->id)->delete();
+        (new ProductTaxService)->store($request->only([
+            'tax_id', 'tax', 'tax_type', 'product_id'
+        ]));
+    }
+
+    // Product Translations
+    $lang = $request->lang ?? default_language();
+    if (!$lang) {
+        $lang = 'en';
+    }
+    
+    ProductTranslation::updateOrCreate(
+        [
+            'lang' => $lang,
+            'product_id' => $product->id
+        ],
+        $request->only(['name', 'description'])
+    );
+
+    flash(translate('Product has been updated successfully'))->success();
+
+    Artisan::call('view:clear');
+    Artisan::call('cache:clear');
+    return back();
+}
+```
+
+## Deleting Digital Products
+
+Delete product and all related data (`app/Http/Controllers/DigitalProductController.php:199`):
+
+```php
+public function destroy($id)
+{
+   (new ProductService)->destroy($id);
+
+    flash(translate('Product has been deleted successfully'))->success();
+    Artisan::call('view:clear');
+    Artisan::call('cache:clear');
+    
+    return back();
+}
+```
+
+## File Download
+
+Admins can download digital product files for testing (`app/Http/Controllers/DigitalProductController.php:211`):
+
+```php
+public function download(Request $request)
+{
+    $product = Product::findOrFail(decrypt($request->id));
+
+    $upload = Upload::findOrFail($product->file_name);
+    
+    if (env('FILESYSTEM_DRIVER') == "s3") {
+        return \Storage::disk('s3')->download(
+            $upload->file_name, 
+            $upload->file_original_name . "." . $upload->extension
+        );
+    } else {
+        if (file_exists(base_path('public/' . $upload->file_name))) {
+            return response()->download(base_path('public/' . $upload->file_name));
+        }
+    }
+}
+```
+
+### Customer Download
+
+Customers receive download links after purchase:
+
+```php
+// Example customer download implementation
+public function customer_download(Request $request)
+{
+    $order_detail = OrderDetail::findOrFail(decrypt($request->id));
+    
+    // Verify ownership
+    if ($order_detail->order->user_id != Auth::user()->id) {
+        abort(403, 'Unauthorized');
+    }
+    
+    // Check payment status
+    if ($order_detail->order->payment_status != 'paid') {
+        flash(translate('Payment required to download'))->error();
+        return back();
+    }
+    
+    $product = $order_detail->product;
+    $upload = Upload::findOrFail($product->file_name);
+    
+    // Track download
+    $order_detail->download_count++;
+    $order_detail->save();
+    
+    // Serve file
+    if (env('FILESYSTEM_DRIVER') == "s3") {
+        return \Storage::disk('s3')->download(
+            $upload->file_name, 
+            $upload->file_original_name . "." . $upload->extension
+        );
+    } else {
+        return response()->download(base_path('public/' . $upload->file_name));
+    }
+}
+```
+
+## File Storage
+
+Digital product files can be stored locally or on S3:
+
+### Local Storage
+
+```php
+// Files stored in public directory
+if (file_exists(base_path('public/' . $upload->file_name))) {
+    return response()->download(base_path('public/' . $upload->file_name));
+}
+```
+
+### S3 Storage
+
+```php
+// Files stored on Amazon S3
+if (env('FILESYSTEM_DRIVER') == "s3") {
+    return \Storage::disk('s3')->download(
+        $upload->file_name, 
+        $upload->file_original_name . "." . $upload->extension
+    );
+}
+```
+
+## Upload Management
+
+Digital files reference the `Upload` model:
+
+```php
+class Product extends Model
+{
+    public function thumbnail()
+    {
+        return $this->belongsTo(Upload::class, 'thumbnail_img');
+    }
+    
+    // Digital file
+    public function digital_file()
+    {
+        return $this->belongsTo(Upload::class, 'file_name');
+    }
+}
+```
+
+## Multi-Language Support
+
+Digital products support translations:
+
+```php
+ProductTranslation::updateOrCreate(
+    [
+        'lang' => $lang,
+        'product_id' => $product->id
+    ],
+    $request->only(['name', 'description'])
+);
+```
+
+## Permissions
+
+Role-based access control for digital product management:
+
+- `show_digital_products` - View digital products list
+- `add_digital_product` - Create new digital products
+- `edit_digital_product` - Update existing digital products
+- `delete_digital_product` - Delete digital products
+- `download_digital_product` - Download product files
+
+## Best Practices
+
+<Steps>
+  <Step title="Secure Files">
+    Store files outside public directory and serve through authenticated controllers
+  </Step>
+  <Step title="Track Downloads">
+    Record download count and timestamps for analytics
+  </Step>
+  <Step title="Set Download Limits">
+    Optionally limit the number of times a customer can download
+  </Step>
+  <Step title="File Size Limits">
+    Configure appropriate upload size limits in PHP and web server
+  </Step>
+  <Step title="Backup Files">
+    Regularly backup digital product files to prevent data loss
+  </Step>
+  <Step title="Use CDN">
+    Consider using S3 or CDN for better download performance
+  </Step>
+</Steps>
+
+## Download Validation
+
+Validate customer access before serving files:
+
+```php
+public function validateDownloadAccess($order_detail_id, $user_id)
+{
+    $order_detail = OrderDetail::findOrFail($order_detail_id);
+    
+    // Check ownership
+    if ($order_detail->order->user_id != $user_id) {
+        return ['valid' => false, 'message' => 'Unauthorized access'];
+    }
+    
+    // Check payment
+    if ($order_detail->order->payment_status != 'paid') {
+        return ['valid' => false, 'message' => 'Payment required'];
+    }
+    
+    // Check download limit
+    $download_limit = get_setting('digital_download_limit') ?? 5;
+    if ($order_detail->download_count >= $download_limit) {
+        return ['valid' => false, 'message' => 'Download limit exceeded'];
+    }
+    
+    return ['valid' => true];
+}
+```
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Wholesale Products" href="/features/wholesale">
+    Sell physical products in bulk with tiered pricing
+  </Card>
+  <Card title="Auction Products" href="/features/auction">
+    Time-limited bidding on products
+  </Card>
+</CardGroup>

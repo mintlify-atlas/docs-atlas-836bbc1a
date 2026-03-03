@@ -1,0 +1,398 @@
+---
+title: Managing Orders
+description: Process and fulfill customer orders as a seller on Ecom
+---
+
+## Overview
+
+Efficient order management is crucial for customer satisfaction and business success. This guide covers viewing orders, updating statuses, and managing the complete order fulfillment process.
+
+## Accessing Your Orders
+
+**Route**: `/seller/orders`
+
+<Steps>
+  <Step title="Navigate to Orders">
+    From your seller dashboard, click "Orders" or "My Orders"
+    
+    **Screenshot Description**: Seller dashboard with Orders menu item highlighted
+  </Step>
+  
+  <Step title="View Order List">
+    See all orders for your products, sorted by most recent first
+  </Step>
+  
+  <Step title="Auto-Mark as Viewed">
+    Orders are automatically marked as viewed when you access the list
+  </Step>
+</Steps>
+
+## Filtering Orders
+
+Find specific orders using filters:
+
+### By Payment Status
+
+<Steps>
+  <Step title="Select Payment Status Filter">
+    Choose from:
+    - Paid
+    - Unpaid
+  </Step>
+  
+  <Step title="Apply Filter">
+    Order list updates to show only matching orders
+  </Step>
+</Steps>
+
+### By Delivery Status
+
+<Steps>
+  <Step title="Select Delivery Status Filter">
+    Choose from:
+    - Pending
+    - Confirmed
+    - Processing
+    - Picked Up
+    - On The Way
+    - Delivered
+    - Cancelled
+  </Step>
+  
+  <Step title="Apply Filter">
+    View orders in the selected delivery stage
+  </Step>
+</Steps>
+
+### By Order Code
+
+<Steps>
+  <Step title="Enter Order Code">
+    Type the order code in the search box
+  </Step>
+  
+  <Step title="Search">
+    Press enter to find specific orders
+  </Step>
+</Steps>
+
+## Viewing Order Details
+
+**Route**: `/seller/orders/{id}/show`
+
+<Steps>
+  <Step title="Click on Order">
+    Select an order from the list to view full details
+    
+    **Screenshot Description**: Order details page showing customer info, products, and status update options
+  </Step>
+  
+  <Step title="Review Order Information">
+    View:
+    - Customer details
+    - Shipping address
+    - Order items (only your products)
+    - Payment information
+    - Current status
+    - Order timeline
+  </Step>
+</Steps>
+
+### Order Information Displayed
+
+- **Order Code**: Unique order identifier
+- **Order Date**: When the order was placed
+- **Customer Name**: Buyer information
+- **Shipping Address**: Delivery location
+- **Payment Method**: How customer paid
+- **Payment Status**: Paid/Unpaid
+- **Delivery Status**: Current fulfillment stage
+- **Order Items**: Products, quantities, prices (your items only)
+- **Total Amount**: Total for your products
+
+<Note>
+If an order contains products from multiple sellers, you only see your own products and the portion of the order that relates to you.
+</Note>
+
+## Updating Delivery Status
+
+**Route**: POST `/seller/orders/update_delivery_status`
+
+<Steps>
+  <Step title="Open Order Details">
+    Navigate to the order you want to update
+  </Step>
+  
+  <Step title="Select New Delivery Status">
+    Choose from available statuses:
+    - **Pending**: Order received, awaiting processing
+    - **Confirmed**: Order confirmed, preparing for shipment
+    - **Processing**: Packing the order
+    - **Picked Up**: Courier has collected the package
+    - **On The Way**: Package is in transit
+    - **Delivered**: Package delivered to customer
+    - **Cancelled**: Order cancelled
+    
+    **Screenshot Description**: Delivery status dropdown showing all available status options
+  </Step>
+  
+  <Step title="Update Status">
+    Click "Update Delivery Status" button
+  </Step>
+  
+  <Step title="Automatic Processes">
+    System automatically:
+    - Updates all your order detail items
+    - Marks order as unviewed by customer (`delivery_viewed = 0`)
+    - Sends notification to customer
+    - Sends SMS if OTP system is active
+    - Sends push notification if Firebase is configured
+  </Step>
+</Steps>
+
+### Cancelled Orders
+
+When you cancel an order:
+
+<Steps>
+  <Step title="Select Cancelled Status">
+    Choose "Cancelled" from the status dropdown
+  </Step>
+  
+  <Step title="Automatic Refund">
+    If payment was via wallet:
+    - Customer's wallet balance is refunded automatically
+    - Refund amount equals the order total
+  </Step>
+  
+  <Step title="Stock Restoration">
+    For each cancelled item:
+    - Product stock is automatically increased
+    - Variant stock is updated correctly
+    - Inventory is immediately available for new orders
+  </Step>
+</Steps>
+
+<Tip>
+Always communicate with customers before cancelling orders. Use the conversation system or contact them directly to explain the reason.
+</Tip>
+
+## Updating Payment Status
+
+**Route**: POST `/seller/orders/update_payment_status`
+
+<Steps>
+  <Step title="Access Payment Status Section">
+    In order details, locate payment status controls
+  </Step>
+  
+  <Step title="Change Payment Status">
+    Toggle between:
+    - **Unpaid**: Payment not received
+    - **Paid**: Payment confirmed
+  </Step>
+  
+  <Step title="Update Status">
+    Click "Update Payment Status"
+  </Step>
+  
+  <Step title="System Actions">
+    When marked as paid:
+    - Updates your order items to "Paid"
+    - Checks if all sellers in the order are paid
+    - If all paid, calculates commission and affiliate points
+    - Marks order as unviewed by customer (`payment_status_viewed = 0`)
+    - Sends customer notifications
+  </Step>
+</Steps>
+
+<Note>
+Commission calculation (`calculateCommissionAffilationClubPoint`) only runs once per order when:
+1. Payment status changes to "Paid"
+2. Commission hasn't been calculated yet (`commission_calculated = 0`)
+</Note>
+
+## Customer Notifications
+
+When you update an order, customers receive notifications through:
+
+### Email Notifications
+- Sent to customer's registered email
+- Contains order code and status update
+
+### SMS Notifications
+If OTP system addon is active:
+- **Delivery Status Change**: Sent when delivery status updates
+- **Payment Status Change**: Sent when payment status updates
+
+### Push Notifications
+If Firebase is configured:
+- **Title**: "Order updated!"
+- **Message**: "Your order {code} has been {status}"
+- **Type**: Links to order details
+
+### In-App Notifications
+- Displayed in customer dashboard
+- Shows order updates in real-time
+
+## Order Workflow Best Practices
+
+### Recommended Status Progression
+
+<Steps>
+  <Step title="Pending → Confirmed">
+    After reviewing the order and confirming you can fulfill it
+  </Step>
+  
+  <Step title="Confirmed → Processing">
+    When you start packing the order
+  </Step>
+  
+  <Step title="Processing → Picked Up">
+    When courier collects the package
+  </Step>
+  
+  <Step title="Picked Up → On The Way">
+    When package is in transit
+  </Step>
+  
+  <Step title="On The Way → Delivered">
+    When customer receives the package
+  </Step>
+</Steps>
+
+<Tip>
+Update order status regularly to:
+- Keep customers informed
+- Build trust and credibility
+- Reduce customer service inquiries
+- Improve customer satisfaction
+</Tip>
+
+## Delivery Boy Integration
+
+If the delivery boy addon is activated:
+
+<Steps>
+  <Step title="View Available Delivery Personnel">
+    System shows delivery boys in the customer's city
+  </Step>
+  
+  <Step title="Assign Delivery">
+    Select appropriate delivery personnel for the order
+  </Step>
+  
+  <Step title="Track Delivery">
+    Monitor delivery status through delivery boy updates
+  </Step>
+</Steps>
+
+## Downloading Invoices
+
+Generate invoices for orders:
+
+**Route**: `/seller/invoice/{order_id}`
+
+<Steps>
+  <Step title="Access Order Details">
+    Open the order requiring an invoice
+  </Step>
+  
+  <Step title="Click Download Invoice">
+    Generate and download PDF invoice
+  </Step>
+  
+  <Step title="Invoice Contents">
+    Invoice includes:
+    - Your shop information
+    - Customer details
+    - Order items
+    - Pricing breakdown
+    - Tax information
+    - Payment status
+  </Step>
+</Steps>
+
+## Common Order Scenarios
+
+### Handling Delayed Shipments
+
+<Steps>
+  <Step title="Contact Customer">
+    Use the conversation system to inform them of the delay
+  </Step>
+  
+  <Step title="Keep Status Updated">
+    Don't mark as "On The Way" until actually shipped
+  </Step>
+  
+  <Step title="Provide Updates">
+    Regularly update customers on expected shipping date
+  </Step>
+</Steps>
+
+### Managing Stock Issues
+
+<Steps>
+  <Step title="Check Stock Immediately">
+    Verify you can fulfill the order
+  </Step>
+  
+  <Step title="Contact Customer if Out of Stock">
+    Inform them promptly if you can't fulfill
+  </Step>
+  
+  <Step title="Offer Alternatives">
+    Suggest similar products or refund options
+  </Step>
+  
+  <Step title="Cancel if Necessary">
+    Cancel the order if customer agrees
+  </Step>
+</Steps>
+
+### Handling Returns
+
+<Steps>
+  <Step title="Communicate with Customer">
+    Discuss the return reason via conversation system
+  </Step>
+  
+  <Step title="Coordinate Return Logistics">
+    Arrange return shipping
+  </Step>
+  
+  <Step title="Process Refund">
+    Once item is returned, update payment status
+  </Step>
+</Steps>
+
+## Tips for Efficient Order Management
+
+1. **Check Orders Daily**: Review new orders every day
+2. **Process Quickly**: Update to "Confirmed" within 24 hours
+3. **Ship Promptly**: Ship within 1-2 business days when possible
+4. **Update Proactively**: Update status at each stage
+5. **Communicate Clearly**: Keep customers informed of any issues
+6. **Use Bulk Actions**: Process similar orders together
+7. **Maintain Inventory**: Keep stock levels accurate to avoid cancellations
+
+## Troubleshooting
+
+**Q: I can't see all order items**  
+A: You only see items from your shop. Other sellers' items aren't visible to you.
+
+**Q: Customer says they didn't receive notification**  
+A: Check if email/SMS systems are configured correctly. Contact admin if issues persist.
+
+**Q: Stock didn't restore after cancellation**  
+A: Check if the product has variants. Contact admin if stock is still incorrect.
+
+**Q: Payment status won't update**  
+A: Ensure you have permission to update payment status. Some platforms restrict this to admins.
+
+## Related Sections
+
+- [Adding Products](/seller/adding-products)
+- [Shop Setup](/seller/shop-setup)
+- [Payments and Withdrawals](/seller/payments-withdrawals)

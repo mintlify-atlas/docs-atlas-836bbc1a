@@ -1,0 +1,407 @@
+---
+title: Affiliate Program
+description: Manage affiliate users, commissions, and referral tracking
+---
+
+## Overview
+
+The Affiliate Program allows users to earn commissions by promoting your products. The system supports multiple commission types, payment processing, withdraw requests, and detailed analytics.
+
+<Note>
+The affiliate system is an addon feature that must be activated. Check `addon_is_activated('affiliate_system')` before using affiliate features.
+</Note>
+
+## Database Structure
+
+### AffiliateLog Model
+
+Location: `app/Models/AffiliateLog.php:1`
+
+**Relationships:**
+- `user()` - BelongsTo relationship with User (app/Models/AffiliateLog.php:9)
+- `order_detail()` - BelongsTo relationship with OrderDetail (app/Models/AffiliateLog.php:14)
+- `order()` - BelongsTo relationship with Order (app/Models/AffiliateLog.php:19)
+
+**Key Fields:**
+- `user_id` - Customer who made the purchase
+- `guest_id` - Guest customer identifier
+- `referred_by_user` - Affiliate user who referred the customer
+- `amount` - Commission amount earned
+- `order_id` - Related order
+- `order_detail_id` - Specific order item (for product-based commissions)
+- `affiliate_type` - Type of commission (user_registration_first_purchase, product_sharing, category_wise_affiliate)
+
+## Commission Types
+
+### User Registration First Purchase
+
+Affiliate earns commission when their referred user makes their first purchase.
+
+**Configuration:**
+- Set percentage of order total (app/Http/Controllers/AffiliateController.php:349)
+- Applied only to first order (app/Http/Controllers/AffiliateController.php:345)
+- Processes when order is placed
+
+```php
+if ($order->user != null && $order->user->orders->count() == 1) {
+    if($order->user->referred_by != null){
+        $amount = (AffiliateOption::where('type', 'user_registration_first_purchase')
+            ->first()->percentage * $order->grand_total)/100;
+        // Add to affiliate balance
+    }
+}
+```
+
+### Product Sharing
+
+Affiliate earns commission when products they share are purchased.
+
+**Configuration:**
+- Fixed amount or percentage per product
+- Tracked via product referral code (app/Http/Controllers/AffiliateController.php:371)
+- Applied to each order item
+
+```php
+if(json_decode(AffiliateOption::where('type', 'product_sharing')
+    ->first()->details)->commission_type == 'amount') {
+    $amount = json_decode(AffiliateOption::where('type', 'product_sharing')
+        ->first()->details)->commission;
+}
+elseif(...->commission_type == 'percent') {
+    $amount = (commission * $orderDetail->price)/100;
+}
+```
+
+### Category-Wise Affiliate
+
+Commission rates vary by product category.
+
+**Configuration:**
+- Set commission per category (app/Http/Controllers/AffiliateController.php:60-65)
+- Amount or percentage based
+- Applied when product's category matches
+
+```php
+foreach (json_decode(AffiliateOption::where('type', 'category_wise_affiliate')
+    ->first()->details) as $key => $value) {
+    if($value->category_id == $orderDetail->product->category->id){
+        if($value->commission_type == 'amount'){
+            $amount = $value->commission;
+        }
+        else {
+            $amount = ($value->commission * $orderDetail->price)/100;
+        }
+    }
+}
+```
+
+## Affiliate User Management
+
+### Registration Process
+
+<Steps>
+  <Step title="User Applies">
+    Customers apply to become affiliates via the application form
+    Location: `app/Http/Controllers/AffiliateController.php:134-139`
+  </Step>
+  
+  <Step title="Submit Verification Form">
+    Applicants fill out a customizable verification form with:
+    - Text fields
+    - Select/Multi-select dropdowns
+    - Radio buttons
+    - File uploads
+    
+    Form structure is stored in `AffiliateConfig` (app/Http/Controllers/AffiliateController.php:185-209)
+  </Step>
+  
+  <Step title="Admin Review">
+    Administrators review applications and either:
+    - Approve the user (app/Http/Controllers/AffiliateController.php:230-240)
+    - Reject the application (app/Http/Controllers/AffiliateController.php:242-253)
+  </Step>
+  
+  <Step title="Affiliate Activation">
+    Approved users can start earning commissions immediately
+  </Step>
+</Steps>
+
+### Verification Form Configuration
+
+Location: `app/Http/Controllers/AffiliateController.php:94-132`
+
+Admins can customize the affiliate application form:
+
+```php
+public function config_store(Request $request){
+    $form = array();
+    $select_types = ['select', 'multi_select', 'radio'];
+    $j = 0;
+    for ($i=0; $i < count($request->type); $i++) {
+        $item['type'] = $request->type[$i];
+        $item['label'] = $request->label[$i];
+        if(in_array($request->type[$i], $select_types)){
+            $item['options'] = json_encode($request['options_'.$request->option[$j]]);
+            $j++;
+        }
+        array_push($form, $item);
+    }
+    $affiliate_config = AffiliateConfig::where('type', 'verification_form')->first();
+    $affiliate_config->value = json_encode($form);
+}
+```
+
+## Payment Management
+
+### Direct Payments
+
+Location: `app/Http/Controllers/AffiliateController.php:271-284`
+
+Admins can pay affiliates directly:
+
+```php
+public function payment_store(Request $request){
+    $affiliate_payment = new AffiliatePayment;
+    $affiliate_payment->affiliate_user_id = $request->affiliate_user_id;
+    $affiliate_payment->amount = $request->amount;
+    $affiliate_payment->payment_method = $request->payment_method;
+    $affiliate_payment->save();
+
+    $affiliate_user = AffiliateUser::findOrFail($request->affiliate_user_id);
+    $affiliate_user->balance -= $request->amount;
+    $affiliate_user->save();
+}
+```
+
+### Withdraw Requests
+
+<Steps>
+  <Step title="Affiliate Requests Withdrawal">
+    Users submit withdrawal requests (app/Http/Controllers/AffiliateController.php:495-515)
+    
+    ```php
+    $withdraw_request = new AffiliateWithdrawRequest;
+    $withdraw_request->user_id  = Auth::user()->id;
+    $withdraw_request->amount   = $request->amount;
+    $withdraw_request->status   = 0;
+    ```
+  </Step>
+  
+  <Step title="Balance Deducted">
+    Amount is immediately deducted from affiliate balance
+    
+    ```php
+    $affiliate_user->balance = $affiliate_user->balance - $request->amount;
+    ```
+  </Step>
+  
+  <Step title="Admin Reviews Request">
+    Administrators view pending requests (app/Http/Controllers/AffiliateController.php:517-521)
+  </Step>
+  
+  <Step title="Process or Reject">
+    Admin either:
+    - **Approves**: Payment is processed and status set to 1 (app/Http/Controllers/AffiliateController.php:530-545)
+    - **Rejects**: Balance is restored and status set to 2 (app/Http/Controllers/AffiliateController.php:547-562)
+  </Step>
+</Steps>
+
+### Payment Settings
+
+Location: `app/Http/Controllers/AffiliateController.php:333-340`
+
+Affiliates configure their payment preferences:
+
+```php
+public function payment_settings_store(Request $request){
+    $affiliate_user = Auth::user()->affiliate_user;
+    $affiliate_user->paypal_email = $request->paypal_email;
+    $affiliate_user->bank_information = $request->bank_information;
+    $affiliate_user->save();
+}
+```
+
+## Analytics and Stats
+
+Location: `app/Http/Controllers/AffiliateController.php:449-486`
+
+### Tracked Metrics
+
+- **Clicks**: Product link clicks
+- **Order Items**: Number of items sold
+- **Delivered**: Successfully delivered orders
+- **Cancelled**: Cancelled orders
+
+### Processing Stats
+
+```php
+public function processAffiliateStats($affiliate_user_id, 
+    $no_click = 0, $no_item = 0, $no_delivered = 0, $no_cancel = 0) {
+    
+    $affiliate_stats = AffiliateStats::whereDate('created_at', Carbon::today())
+        ->where("affiliate_user_id", $affiliate_user_id)
+        ->first();
+
+    if(!$affiliate_stats) {
+        $affiliate_stats = new AffiliateStats;
+        // Initialize counters
+    }
+
+    $affiliate_stats->no_of_order_item += $no_item;
+    $affiliate_stats->no_of_delivered += $no_delivered;
+    $affiliate_stats->no_of_cancel += $no_cancel;
+    $affiliate_stats->no_of_click += $no_click;
+    $affiliate_stats->save();
+}
+```
+
+### User Dashboard
+
+Location: `app/Http/Controllers/AffiliateController.php:292-310`
+
+Affiliates can view their stats filtered by:
+- Today
+- Last 7 days
+- Last 30 days
+
+```php
+$query = AffiliateStats::query();
+$query = $query->select(
+    DB::raw('SUM(no_of_click) AS count_click, 
+             SUM(no_of_order_item) AS count_item, 
+             SUM(no_of_delivered) AS count_delivered,  
+             SUM(no_of_cancel) AS count_cancel')
+);
+if($request->type == 'Today') {
+    $query->whereDate('created_at', Carbon::today());
+}
+```
+
+## Configuration Options
+
+### Validation Time
+
+Location: `app/Http/Controllers/AffiliateController.php:99-109`
+
+Set how long it takes for commissions to be validated:
+
+```php
+$affiliate_config = AffiliateConfig::where('type', 'validation_time')->first();
+if($affiliate_config == null){
+    $affiliate_config = new AffiliateConfig;
+}
+$affiliate_config->type = $request->type;
+$affiliate_config->value = $request[$request->type];
+$affiliate_config->save();
+```
+
+### Commission Rate Configuration
+
+Location: `app/Http/Controllers/AffiliateController.php:43-92`
+
+Admins can configure commission rates for each type:
+
+```php
+public function affiliate_option_store(Request $request){
+    $affiliate_option = AffiliateOption::where('type', $request->type)->first();
+    if($affiliate_option == null){
+        $affiliate_option = new AffiliateOption;
+    }
+    $affiliate_option->type = $request->type;
+    
+    if ($request->type == 'user_registration_first_purchase') {
+        $affiliate_option->percentage = $request->percentage;
+    }
+    // Additional configuration based on type
+}
+```
+
+## Permissions
+
+Location: `app/Http/Controllers/AffiliateController.php:24-36`
+
+- `affiliate_registration_form_config` - Configure verification form
+- `affiliate_configurations` - Manage commission settings
+- `view_affiliate_users` - View affiliate users list
+- `pay_to_affiliate_user` - Process payments
+- `affiliate_users_payment_history` - View payment records
+- `view_all_referral_users` - See referral network
+- `view_affiliate_withdraw_requests` - View withdrawal requests
+- `accept_affiliate_withdraw_requests` - Approve withdrawals
+- `reject_affiliate_withdraw_request` - Deny withdrawal requests
+- `view_affiliate_logs` - Access affiliate activity logs
+
+## Commission Processing
+
+Location: `app/Http/Controllers/AffiliateController.php:342-447`
+
+The `processAffiliatePoints` method automatically processes commissions when orders are placed:
+
+<Warning>
+Commissions are only processed if the affiliate system addon is activated. Always check `addon_is_activated('affiliate_system')` before processing.
+</Warning>
+
+### Processing Flow
+
+1. **Check addon status** - Verify affiliate system is enabled
+2. **Determine commission type** - User registration, product sharing, or category-wise
+3. **Calculate commission amount** - Based on configuration
+4. **Update affiliate balance** - Add commission to user's balance
+5. **Create affiliate log** - Record transaction for tracking
+
+## Referral Tracking
+
+Location: `app/Http/Controllers/AffiliateController.php:488-492`
+
+View all users referred by affiliates:
+
+```php
+public function refferal_users()
+{
+    $refferal_users = User::where('referred_by', '!=' , null)->paginate(10);
+    return view('affiliate.refferal_users', compact('refferal_users'));
+}
+```
+
+## Best Practices
+
+<Note>
+**Commission Structure:**
+- Start with conservative rates (5-10%) and adjust based on performance
+- Consider category-wise rates for different profit margins
+- Set validation periods to prevent fraud (e.g., 30 days after delivery)
+</Note>
+
+<Warning>
+**Payment Security:**
+- Verify affiliate identity before processing large payments
+- Monitor for unusual activity patterns
+- Set minimum withdrawal amounts to reduce transaction fees
+- Keep detailed payment records for tax compliance
+</Warning>
+
+## API Endpoints
+
+### Admin Endpoints
+
+```php
+GET  /admin/affiliate/users                    // List affiliates
+GET  /admin/affiliate/users/{id}/verification  // View application
+POST /admin/affiliate/users/{id}/approve       // Approve affiliate
+POST /admin/affiliate/users/{id}/reject        // Reject affiliate
+GET  /admin/affiliate/logs                     // View activity logs
+GET  /admin/affiliate/withdraw-requests        // View withdrawals
+POST /admin/affiliate/withdraw-requests/accept // Process withdrawal
+POST /admin/affiliate/withdraw-requests/reject // Reject withdrawal
+```
+
+### User Endpoints
+
+```php
+GET  /affiliate/apply              // Application form
+POST /affiliate/apply              // Submit application
+GET  /affiliate/dashboard          // User dashboard
+GET  /affiliate/payment-history    // Payment records
+POST /affiliate/withdraw-request   // Request withdrawal
+GET  /affiliate/payment-settings   // Configure payment methods
+```

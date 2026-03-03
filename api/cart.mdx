@@ -1,0 +1,344 @@
+---
+title: 'Cart'
+description: 'Manage shopping cart items'
+---
+
+<Note>
+All cart endpoints require authentication with `auth:sanctum`.
+</Note>
+
+## Get Cart Summary
+
+<api method="GET" endpoint="/api/v2/cart-summary" auth="sanctum">
+  Get cart summary with totals
+</api>
+
+### Response
+
+<ResponseField name="sub_total" type="string">
+  Formatted subtotal price
+</ResponseField>
+
+<ResponseField name="tax" type="string">
+  Formatted total tax
+</ResponseField>
+
+<ResponseField name="shipping_cost" type="string">
+  Formatted shipping cost
+</ResponseField>
+
+<ResponseField name="discount" type="string">
+  Formatted discount amount
+</ResponseField>
+
+<ResponseField name="grand_total" type="string">
+  Formatted grand total
+</ResponseField>
+
+<ResponseField name="grand_total_value" type="number">
+  Grand total numeric value
+</ResponseField>
+
+<ResponseField name="coupon_code" type="string">
+  Applied coupon code
+</ResponseField>
+
+<ResponseField name="coupon_applied" type="boolean">
+  Whether coupon is applied
+</ResponseField>
+
+### Example
+
+```bash
+curl -X GET https://your-domain.com/api/v2/cart-summary \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+## Get Cart Count
+
+<api method="GET" endpoint="/api/v2/cart-count" auth="sanctum">
+  Get number of items in cart
+</api>
+
+### Response
+
+```json
+{
+  "count": 3,
+  "status": true
+}
+```
+
+## Get Cart List
+
+<api method="POST" endpoint="/api/v2/carts" auth="sanctum">
+  Get detailed cart items grouped by shop
+</api>
+
+### Response
+
+<ResponseField name="grand_total" type="string">
+  Formatted grand total
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of shops with cart items
+  <Expandable>
+    <ResponseField name="name" type="string">
+      Shop name or "Inhouse"
+    </ResponseField>
+    <ResponseField name="owner_id" type="integer">
+      Shop owner ID
+    </ResponseField>
+    <ResponseField name="sub_total" type="string">
+      Shop subtotal
+    </ResponseField>
+    <ResponseField name="cart_items" type="array">
+      Array of cart items
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl -X POST https://your-domain.com/api/v2/carts \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+## Add to Cart
+
+<api method="POST" endpoint="/api/v2/carts/add" auth="sanctum">
+  Add a product to cart
+</api>
+
+### Request
+
+<ParamField body="id" type="integer" required>
+  Product ID
+</ParamField>
+
+<ParamField body="variant" type="string">
+  Product variant (e.g., "Red-Large")
+</ParamField>
+
+<ParamField body="quantity" type="integer" required>
+  Quantity to add
+</ParamField>
+
+<ParamField body="cost_matrix" type="string">
+  Cost verification matrix
+</ParamField>
+
+### Response
+
+```json
+{
+  "result": true,
+  "message": "Product added to cart successfully"
+}
+```
+
+### Example
+
+```bash
+curl -X POST https://your-domain.com/api/v2/carts/add \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": 123,
+    "variant": "Red-Large",
+    "quantity": 2
+  }'
+```
+
+<Note>
+The API validates:
+- Minimum order quantity
+- Stock availability
+- Auction products cannot be mixed with regular products
+- Digital products are handled specially
+</Note>
+
+## Change Quantity
+
+<api method="POST" endpoint="/api/v2/carts/change-quantity" auth="sanctum">
+  Update quantity of a cart item
+</api>
+
+### Request
+
+<ParamField body="id" type="integer" required>
+  Cart item ID
+</ParamField>
+
+<ParamField body="quantity" type="integer" required>
+  New quantity
+</ParamField>
+
+### Response
+
+```json
+{
+  "result": true,
+  "message": "Cart updated"
+}
+```
+
+### Example
+
+```bash
+curl -X POST https://your-domain.com/api/v2/carts/change-quantity \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": 456,
+    "quantity": 3
+  }'
+```
+
+## Process Cart
+
+<api method="POST" endpoint="/api/v2/carts/process" auth="sanctum">
+  Process and validate multiple cart items before checkout
+</api>
+
+### Request
+
+<ParamField body="cart_ids" type="string" required>
+  Comma-separated cart item IDs (e.g., "1,2,3")
+</ParamField>
+
+<ParamField body="cart_quantities" type="string" required>
+  Comma-separated quantities matching cart_ids (e.g., "2,1,3")
+</ParamField>
+
+### Response
+
+```json
+{
+  "result": true,
+  "message": "Cart updated"
+}
+```
+
+<Warning>
+This endpoint validates:
+- Minimum order quantities for each product
+- Stock availability for each variant
+- Digital product handling
+</Warning>
+
+## Remove from Cart
+
+<api method="DELETE" endpoint="/api/v2/carts/{id}" auth="sanctum">
+  Remove an item from cart
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Cart item ID
+</ParamField>
+
+### Response
+
+```json
+{
+  "result": true,
+  "message": "Product is successfully removed from your cart"
+}
+```
+
+### Example
+
+```bash
+curl -X DELETE https://your-domain.com/api/v2/carts/456 \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+## Coupon Management
+
+### Apply Coupon
+
+<api method="POST" endpoint="/api/v2/coupon-apply" auth="sanctum">
+  Apply a coupon code to cart
+</api>
+
+<ParamField body="coupon_code" type="string" required>
+  Coupon code to apply
+</ParamField>
+
+### Remove Coupon
+
+<api method="POST" endpoint="/api/v2/coupon-remove" auth="sanctum">
+  Remove applied coupon from cart
+</api>
+
+### Get Coupon List
+
+<api method="GET" endpoint="/api/v2/coupon-list" auth="none">
+  Get all available coupons
+</api>
+
+### Get Coupon Products
+
+<api method="GET" endpoint="/api/v2/coupon-products/{id}" auth="none">
+  Get products eligible for a specific coupon
+</api>
+
+## Shipping Management
+
+### Get Delivery Info
+
+<api method="GET" endpoint="/api/v2/delivery-info" auth="sanctum">
+  Get delivery information for cart
+</api>
+
+### Calculate Shipping Cost
+
+<api method="POST" endpoint="/api/v2/shipping_cost" auth="sanctum">
+  Calculate shipping cost for cart
+</api>
+
+<ParamField body="address_id" type="integer" required>
+  Shipping address ID
+</ParamField>
+
+### Update Address in Cart
+
+<api method="POST" endpoint="/api/v2/update-address-in-cart" auth="sanctum">
+  Update shipping address for cart items
+</api>
+
+<ParamField body="address_id" type="integer" required>
+  Address ID to use
+</ParamField>
+
+### Update Shipping Type
+
+<api method="POST" endpoint="/api/v2/update-shipping-type-in-cart" auth="sanctum">
+  Update shipping type (home delivery, pickup, carrier)
+</api>
+
+<ParamField body="shipping_type" type="string" required>
+  Shipping type: `home_delivery`, `pickup_point`, or `carrier`
+</ParamField>
+
+### Get Home Delivery Address
+
+<api method="GET" endpoint="/api/v2/get-home-delivery-address" auth="sanctum">
+  Get current shipping address from cart
+</api>
+
+## Carriers
+
+<api method="POST" endpoint="/api/v2/carriers" auth="sanctum">
+  Get available carriers for delivery
+</api>
+
+## Pickup Points
+
+<api method="GET" endpoint="/api/v2/pickup-list" auth="none">
+  Get list of available pickup points
+</api>

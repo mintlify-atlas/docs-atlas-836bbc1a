@@ -1,0 +1,248 @@
+---
+title: 'Auction'
+description: 'Auction products and bidding'
+---
+
+## Overview
+
+The auction system allows users to bid on auction products. Auction products have start and end dates, and users can place bids during the active auction period.
+
+## Get Auction Products
+
+<api method="GET" endpoint="/api/v2/auction/products" auth="none">
+  Get list of active auction products
+</api>
+
+### Query Parameters
+
+<ParamField query="page" type="integer" default="1">
+  Page number
+</ParamField>
+
+### Response
+
+Returns paginated list of auction products that are currently active (between auction_start_date and auction_end_date).
+
+### Example
+
+```bash
+curl https://your-domain.com/api/v2/auction/products
+```
+
+<Note>
+If `seller_auction_product` setting is disabled, only admin auction products are returned.
+</Note>
+
+## Get Auction Product Details
+
+<api method="GET" endpoint="/api/v2/auction/products/{id}" auth="none">
+  Get detailed information about an auction product
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Auction product ID
+</ParamField>
+
+### Response
+
+Detailed auction product information including:
+- Product details
+- Current highest bid
+- Bid history
+- Auction start and end dates
+- Product images and description
+
+### Example
+
+```bash
+curl https://your-domain.com/api/v2/auction/products/123
+```
+
+## Place Bid
+
+<api method="POST" endpoint="/api/v2/auction/place-bid" auth="sanctum">
+  Place a bid on an auction product
+</api>
+
+### Request
+
+<ParamField body="product_id" type="integer" required>
+  Auction product ID
+</ParamField>
+
+<ParamField body="amount" type="number" required>
+  Bid amount (must be higher than current highest bid)
+</ParamField>
+
+### Response
+
+```json
+{
+  "result": true,
+  "message": "Bid placed successfully",
+  "bid_id": 456
+}
+```
+
+### Example
+
+```bash
+curl -X POST https://your-domain.com/api/v2/auction/place-bid \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "product_id": 123,
+    "amount": 150.00
+  }'
+```
+
+<Warning>
+Bidding requirements:
+- User must be authenticated
+- Auction must be active (between start and end dates)
+- Bid amount must be higher than current highest bid
+- Bid amount must meet minimum increment requirements
+</Warning>
+
+## Get Bided Products
+
+<api method="GET" endpoint="/api/v2/auction/bided-products" auth="sanctum">
+  Get list of auction products the user has bid on
+</api>
+
+### Query Parameters
+
+<ParamField query="page" type="integer" default="1">
+  Page number
+</ParamField>
+
+### Response
+
+Returns paginated list of products where the authenticated user has placed bids, ordered by most recent bid first.
+
+### Example
+
+```bash
+curl -X GET https://your-domain.com/api/v2/auction/bided-products \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+## Get Purchase History
+
+<api method="GET" endpoint="/api/v2/auction/purchase-history" auth="sanctum">
+  Get user's auction product purchase history
+</api>
+
+### Query Parameters
+
+<ParamField query="payment_status" type="string">
+  Filter by payment status: `paid`, `unpaid`
+</ParamField>
+
+<ParamField query="delivery_status" type="string">
+  Filter by delivery status: `pending`, `confirmed`, `picked_up`, `on_the_way`, `delivered`, `cancelled`
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Page number
+</ParamField>
+
+### Response
+
+Returns paginated list of orders containing auction products won by the user.
+
+### Example
+
+```bash
+curl -X GET "https://your-domain.com/api/v2/auction/purchase-history?payment_status=paid&delivery_status=delivered" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+## Auction Product Flow
+
+### 1. Browse Auction Products
+
+Users can browse active auction products using the `/api/v2/auction/products` endpoint.
+
+### 2. View Product Details
+
+Get detailed information about a specific auction product including current bid status.
+
+### 3. Place Bid
+
+Authenticated users can place bids on active auctions. Each bid must be higher than the current highest bid.
+
+### 4. Win Auction
+
+When the auction ends, the highest bidder wins the product.
+
+### 5. Complete Purchase
+
+The winning bidder can complete the purchase by adding the won product to their cart and checking out.
+
+## Important Notes
+
+<Note>
+Auction products in cart:
+- Cannot be mixed with regular products
+- Quantity is always 1
+- Once added to cart, the same auction product cannot be added again
+</Note>
+
+<Info>
+Auction product characteristics:
+- Has `auction_product` flag set to 1
+- Has `auction_start_date` timestamp
+- Has `auction_end_date` timestamp
+- Only active between start and end dates
+- May have minimum bid increment
+- Controlled by `seller_auction_product` system setting
+</Info>
+
+## Bid Response Structure
+
+<ResponseField name="id" type="integer">
+  Bid ID
+</ResponseField>
+
+<ResponseField name="product_id" type="integer">
+  Auction product ID
+</ResponseField>
+
+<ResponseField name="user_id" type="integer">
+  Bidder user ID
+</ResponseField>
+
+<ResponseField name="amount" type="number">
+  Bid amount
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  Bid timestamp
+</ResponseField>
+
+## Product Response Fields
+
+Auction products include all standard product fields plus:
+
+<ResponseField name="auction_product" type="integer">
+  Auction flag (1 for auction products)
+</ResponseField>
+
+<ResponseField name="auction_start_date" type="integer">
+  Auction start timestamp
+</ResponseField>
+
+<ResponseField name="auction_end_date" type="integer">
+  Auction end timestamp
+</ResponseField>
+
+<ResponseField name="current_bid" type="number">
+  Current highest bid amount
+</ResponseField>
+
+<ResponseField name="total_bids" type="integer">
+  Total number of bids placed
+</ResponseField>

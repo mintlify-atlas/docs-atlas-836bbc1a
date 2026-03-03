@@ -1,0 +1,370 @@
+---
+title: Commission System
+description: Track and manage seller commissions on marketplace transactions
+---
+
+## Overview
+
+The commission system tracks earnings and fees for multi-vendor marketplace transactions. It records commission history for each order, enabling transparent financial tracking between the platform and sellers.
+
+<CardGroup cols={2}>
+  <Card title="Order Tracking" icon="receipt">
+    Link commissions to specific orders for complete audit trail
+  </Card>
+  <Card title="Automated Calculation" icon="calculator">
+    Automatically calculate platform fees on each transaction
+  </Card>
+  <Card title="Seller Reports" icon="chart-line">
+    Generate commission reports for seller payouts
+  </Card>
+  <Card title="Commission History" icon="clock-rotate-left">
+    Maintain complete history of all commission transactions
+  </Card>
+</CardGroup>
+
+## Model Structure
+
+### CommissionHistory Model
+
+The `CommissionHistory` model tracks commission records:
+
+```php
+class CommissionHistory extends Model
+{
+    public function order() {
+        return $this->hasOne(Order::class, 'id', 'order_id');
+    }
+}
+```
+
+**Key Relationships:**
+- `order` - Links commission record to the associated order
+
+**Database Fields:**
+- `order_id` - Reference to the order
+- `seller_id` - The seller receiving the commission
+- `admin_commission` - Platform's commission amount
+- `seller_earning` - Seller's net earning after commission
+- `created_at` - When commission was recorded
+
+## Commission Calculation
+
+Commissions are typically calculated during order processing. The platform can use:
+
+### Percentage-Based Commission
+
+Calculate commission as a percentage of order total:
+
+```php
+// Example commission calculation
+$order_amount = $order->grand_total;
+$commission_rate = get_setting('vendor_commission'); // e.g., 10%
+
+$admin_commission = ($order_amount * $commission_rate) / 100;
+$seller_earning = $order_amount - $admin_commission;
+
+$commission = new CommissionHistory();
+$commission->order_id = $order->id;
+$commission->seller_id = $order->seller_id;
+$commission->admin_commission = $admin_commission;
+$commission->seller_earning = $seller_earning;
+$commission->save();
+```
+
+### Category-Based Commission
+
+Different commission rates for different product categories:
+
+```php
+// Get category-specific commission rate
+$category = $order_detail->product->main_category;
+$commission_rate = $category->commission_rate ?? get_setting('default_commission');
+
+$item_total = $order_detail->price * $order_detail->quantity;
+$admin_commission = ($item_total * $commission_rate) / 100;
+$seller_earning = $item_total - $admin_commission;
+```
+
+### Flat Fee Commission
+
+Charge a fixed amount per transaction:
+
+```php
+$flat_commission = get_setting('flat_commission_fee'); // e.g., $5
+
+$commission = new CommissionHistory();
+$commission->order_id = $order->id;
+$commission->seller_id = $order->seller_id;
+$commission->admin_commission = $flat_commission;
+$commission->seller_earning = $order->grand_total - $flat_commission;
+$commission->save();
+```
+
+## Retrieving Commission Data
+
+### Get Commission by Order
+
+```php
+$commission = CommissionHistory::where('order_id', $order_id)->first();
+
+if ($commission) {
+    echo "Admin Commission: " . $commission->admin_commission;
+    echo "Seller Earning: " . $commission->seller_earning;
+    echo "Order: " . $commission->order->code;
+}
+```
+
+### Get Seller Commission History
+
+```php
+$seller_commissions = CommissionHistory::where('seller_id', $seller_id)
+    ->with('order')
+    ->orderBy('created_at', 'desc')
+    ->paginate(20);
+
+foreach ($seller_commissions as $commission) {
+    echo "Order: " . $commission->order->code;
+    echo "Earning: " . $commission->seller_earning;
+    echo "Date: " . $commission->created_at->format('Y-m-d');
+}
+```
+
+### Calculate Total Earnings
+
+```php
+// Total seller earnings
+$total_earnings = CommissionHistory::where('seller_id', $seller_id)
+    ->sum('seller_earning');
+
+// Total platform commissions
+$total_commissions = CommissionHistory::where('seller_id', $seller_id)
+    ->sum('admin_commission');
+
+// Earnings within date range
+$monthly_earnings = CommissionHistory::where('seller_id', $seller_id)
+    ->whereMonth('created_at', now()->month)
+    ->whereYear('created_at', now()->year)
+    ->sum('seller_earning');
+```
+
+## Commission Reports
+
+### Seller Commission Report
+
+Generate detailed commission breakdown for sellers:
+
+```php
+public function seller_commission_report($seller_id)
+{
+    $commissions = CommissionHistory::where('seller_id', $seller_id)
+        ->with(['order' => function($query) {
+            $query->select('id', 'code', 'grand_total', 'created_at');
+        }])
+        ->orderBy('created_at', 'desc')
+        ->get();
+
+    $summary = [
+        'total_orders' => $commissions->count(),
+        'total_sales' => $commissions->sum(function($c) {
+            return $c->admin_commission + $c->seller_earning;
+        }),
+        'total_commission' => $commissions->sum('admin_commission'),
+        'total_earnings' => $commissions->sum('seller_earning'),
+    ];
+
+    return view('reports.seller_commission', compact('commissions', 'summary'));
+}
+```
+
+### Admin Commission Dashboard
+
+Platform-wide commission overview:
+
+```php
+public function admin_commission_dashboard()
+{
+    $today_commissions = CommissionHistory::whereDate('created_at', today())
+        ->sum('admin_commission');
+
+    $month_commissions = CommissionHistory::whereMonth('created_at', now()->month)
+        ->whereYear('created_at', now()->year)
+        ->sum('admin_commission');
+
+    $total_commissions = CommissionHistory::sum('admin_commission');
+
+    $top_sellers = CommissionHistory::selectRaw('seller_id, SUM(seller_earning) as total_earning')
+        ->groupBy('seller_id')
+        ->orderByDesc('total_earning')
+        ->limit(10)
+        ->get();
+
+    return view('admin.commission_dashboard', compact(
+        'today_commissions',
+        'month_commissions', 
+        'total_commissions',
+        'top_sellers'
+    ));
+}
+```
+
+## Seller Payout Integration
+
+### Calculate Pending Payouts
+
+```php
+public function calculate_pending_payout($seller_id)
+{
+    // Get total earnings
+    $total_earnings = CommissionHistory::where('seller_id', $seller_id)
+        ->sum('seller_earning');
+
+    // Get already paid amount
+    $paid_amount = Payment::where('seller_id', $seller_id)
+        ->where('payment_status', 'paid')
+        ->sum('amount');
+
+    // Calculate pending
+    $pending_payout = $total_earnings - $paid_amount;
+
+    return $pending_payout;
+}
+```
+
+### Process Seller Payment
+
+```php
+public function process_seller_payment(Request $request)
+{
+    $seller_id = $request->seller_id;
+    $amount = $request->amount;
+
+    $pending = $this->calculate_pending_payout($seller_id);
+
+    if ($amount > $pending) {
+        flash(translate('Payment amount exceeds pending payout'))->error();
+        return back();
+    }
+
+    $payment = new Payment();
+    $payment->seller_id = $seller_id;
+    $payment->amount = $amount;
+    $payment->payment_method = $request->payment_method;
+    $payment->payment_details = $request->payment_details;
+    $payment->payment_status = 'paid';
+    $payment->save();
+
+    flash(translate('Payment processed successfully'))->success();
+    return back();
+}
+```
+
+## Commission Analytics
+
+### Monthly Commission Trend
+
+```php
+public function monthly_commission_trend($seller_id = null)
+{
+    $query = CommissionHistory::selectRaw(
+        'YEAR(created_at) as year, 
+         MONTH(created_at) as month,
+         SUM(admin_commission) as total_commission,
+         SUM(seller_earning) as total_earning,
+         COUNT(*) as order_count'
+    )
+    ->groupBy('year', 'month')
+    ->orderBy('year', 'desc')
+    ->orderBy('month', 'desc');
+
+    if ($seller_id) {
+        $query->where('seller_id', $seller_id);
+    }
+
+    return $query->take(12)->get();
+}
+```
+
+### Commission by Category
+
+```php
+public function commission_by_category()
+{
+    $data = CommissionHistory::join('orders', 'commission_histories.order_id', '=', 'orders.id')
+        ->join('order_details', 'orders.id', '=', 'order_details.order_id')
+        ->join('products', 'order_details.product_id', '=', 'products.id')
+        ->join('categories', 'products.category_id', '=', 'categories.id')
+        ->selectRaw(
+            'categories.name as category,
+             SUM(commission_histories.admin_commission) as total_commission,
+             COUNT(DISTINCT commission_histories.id) as order_count'
+        )
+        ->groupBy('categories.id', 'categories.name')
+        ->orderByDesc('total_commission')
+        ->get();
+
+    return $data;
+}
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Record on Order Completion">
+    Create commission records when orders are completed or paid, not when placed
+  </Step>
+  <Step title="Handle Refunds">
+    Reverse commission entries when orders are refunded or cancelled
+  </Step>
+  <Step title="Audit Trail">
+    Maintain complete history without deleting records for financial auditing
+  </Step>
+  <Step title="Automated Reports">
+    Generate commission reports automatically for seller transparency
+  </Step>
+  <Step title="Tax Compliance">
+    Include commission data in tax reporting and invoicing
+  </Step>
+</Steps>
+
+<Warning>
+Never modify historical commission records. Create reversal entries for corrections to maintain audit integrity.
+</Warning>
+
+## Integration with Orders
+
+The commission system integrates with the order workflow:
+
+```php
+// In OrderController after payment confirmation
+public function payment_confirmed($order_id)
+{
+    $order = Order::findOrFail($order_id);
+    
+    // Calculate and record commission
+    $commission_rate = get_setting('vendor_commission');
+    $admin_commission = ($order->grand_total * $commission_rate) / 100;
+    $seller_earning = $order->grand_total - $admin_commission;
+
+    $commission = new CommissionHistory();
+    $commission->order_id = $order->id;
+    $commission->seller_id = $order->seller_id;
+    $commission->admin_commission = $admin_commission;
+    $commission->seller_earning = $seller_earning;
+    $commission->save();
+
+    // Update order status
+    $order->payment_status = 'paid';
+    $order->save();
+}
+```
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Seller Management" href="/features/seller-management">
+    Manage seller accounts and payouts
+  </Card>
+  <Card title="Seller Packages" href="/features/seller-packages">
+    Seller subscription management
+  </Card>
+</CardGroup>

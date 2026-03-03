@@ -1,0 +1,473 @@
+---
+title: Adding Products
+description: Complete guide to creating and managing product listings as a seller
+---
+
+## Overview
+
+Adding products is the core of your selling activity. This guide covers creating physical products, managing variants, setting prices, and optimizing listings for maximum visibility.
+
+## Before You Start
+
+### Package Validity Check
+
+<Note>
+If seller subscriptions are active, you need a valid seller package to add products. Check your package status in the dashboard.
+</Note>
+
+If your package has expired:
+- You'll see: "Please upgrade your package"
+- Navigate to seller packages and renew or upgrade
+
+### Prepare Product Information
+
+Gather the following before creating a listing:
+- Product name and description
+- High-quality images (minimum 800x800px)
+- Category and subcategory
+- Brand (if applicable)
+- Pricing information
+- Stock quantities
+- Product variants (colors, sizes, etc.)
+- Tax information
+
+## Creating a New Product
+
+**Route**: `/seller/products/create`
+
+<Steps>
+  <Step title="Navigate to Products">
+    From your seller dashboard, go to Products > Add New Product
+    
+    **Screenshot Description**: Product menu with "Add New Product" button highlighted
+  </Step>
+  
+  <Step title="Select Category">
+    Choose the appropriate category for your product:
+    - Only root categories (level 0) for physical products are shown
+    - Categories are displayed with their subcategories
+    - Select the most specific category that fits your product
+  </Step>
+  
+  <Step title="Enter Basic Information">
+    Fill in required fields:
+    - **Product Name**: Clear, descriptive name
+    - **Unit**: Piece, kg, liter, etc.
+    - **Description**: Detailed product information
+    - **Tags**: Keywords for searchability (JSON format)
+  </Step>
+  
+  <Step title="Upload Product Images">
+    Add high-quality product images:
+    - Main product image
+    - Multiple angle shots
+    - Detail images
+    - Lifestyle/usage images
+    
+    **Tip**: Use well-lit, clear images on white backgrounds
+  </Step>
+</Steps>
+
+## Pricing and Stock Configuration
+
+### Basic Pricing
+
+<Steps>
+  <Step title="Set Unit Price">
+    Enter the base price for your product
+  </Step>
+  
+  <Step title="Configure Stock">
+    Enter available quantity:
+    - `current_stock`: Number of units available
+  </Step>
+  
+  <Step title="Set SKU">
+    Enter a unique Stock Keeping Unit code for inventory tracking
+  </Step>
+</Steps>
+
+### Product Variants
+
+If your product has variations (colors, sizes, etc.):
+
+<Steps>
+  <Step title="Enable Colors">
+    If product comes in different colors:
+    - Toggle `colors_active`
+    - Select available colors from the color palette
+  </Step>
+  
+  <Step title="Add Attributes">
+    For other variations (size, material, etc.):
+    - Select attribute type (size, material, etc.)
+    - Choose attribute values
+  </Step>
+  
+  <Step title="Generate SKU Combinations">
+    Click "Generate Combinations" to create all variant SKUs
+    
+    **Route**: POST `/seller/products/sku_combination`
+    
+    **Screenshot Description**: SKU combination table showing all product variants with individual pricing and stock fields
+  </Step>
+  
+  <Step title="Set Variant Pricing">
+    For each combination, set:
+    - Variant-specific price
+    - SKU code
+    - Stock quantity
+  </Step>
+</Steps>
+
+<Note>
+SKU combinations are generated from all selected options. For example:
+- Colors: Red, Blue
+- Sizes: S, M, L
+- Results in: Red-S, Red-M, Red-L, Blue-S, Blue-M, Blue-L (6 combinations)
+</Note>
+
+## Tax Configuration
+
+<Steps>
+  <Step title="Select Tax">
+    Choose applicable tax from available options
+  </Step>
+  
+  <Step title="Set Tax Rate">
+    Enter tax percentage if required
+  </Step>
+  
+  <Step title="Choose Tax Type">
+    Select:
+    - **Inclusive**: Tax included in price
+    - **Exclusive**: Tax added to price at checkout
+  </Step>
+</Steps>
+
+## Category Assignment
+
+Products can belong to multiple categories:
+
+<Steps>
+  <Step title="Select Primary Category">
+    Choose the main category for your product
+  </Step>
+  
+  <Step title="Add Additional Categories">
+    Select related categories for better discoverability
+  </Step>
+</Steps>
+
+## Saving Your Product
+
+<Steps>
+  <Step title="Review All Information">
+    Double-check all entered data for accuracy
+  </Step>
+  
+  <Step title="Save Product">
+    Click "Save Product"
+    
+    **Route**: POST `/seller/products/store`
+  </Step>
+  
+  <Step title="Approval Process">
+    If product approval is enabled:
+    - Product status: Pending approval
+    - You and admin receive notifications
+    - Product appears in your list but isn't public yet
+    
+    If approval is disabled:
+    - Product is immediately published
+  </Step>
+</Steps>
+
+<Note>
+After saving, the system clears view and application cache to ensure your product appears correctly.
+</Note>
+
+## Managing Existing Products
+
+### Viewing Your Products
+
+**Route**: `/seller/products`
+
+<Steps>
+  <Step title="Access Product List">
+    Navigate to Products > My Products
+  </Step>
+  
+  <Step title="Search Products">
+    Use the search bar to find products by name
+  </Step>
+  
+  <Step title="Filter Products">
+    View:
+    - All products
+    - Published products
+    - Pending approval products
+    - Unpublished products
+  </Step>
+</Steps>
+
+### Editing Products
+
+**Route**: `/seller/product/{id}/edit`
+
+<Steps>
+  <Step title="Locate Product">
+    Find the product in your product list
+  </Step>
+  
+  <Step title="Click Edit">
+    Click the edit icon next to the product
+    
+    **Screenshot Description**: Product list with edit icons visible for each product
+  </Step>
+  
+  <Step title="Modify Product Information">
+    Update any product details:
+    - Basic information
+    - Images
+    - Pricing
+    - Stock levels
+    - Variants
+  </Step>
+  
+  <Step title="Update Stock Combinations">
+    If changing variants:
+    - Existing stocks are deleted
+    - New combinations are generated
+    - Re-enter stock quantities
+    
+    **Route**: POST `/seller/products/sku_combination_edit`
+  </Step>
+  
+  <Step title="Save Changes">
+    **Route**: POST `/seller/products/update/{product}`
+  </Step>
+</Steps>
+
+## Product Features
+
+### Publish/Unpublish
+
+Control product visibility:
+
+<Steps>
+  <Step title="Toggle Published Status">
+    Use the publish toggle in your product list
+    
+    **Route**: POST `/seller/products/published`
+  </Step>
+  
+  <Step title="Package Validation">
+    If subscriptions are active:
+    - System checks package validity before publishing
+    - Returns error if package is expired
+  </Step>
+</Steps>
+
+### Featured Products
+
+Highlight your best products:
+
+<Steps>
+  <Step title="Mark as Featured">
+    Toggle the featured status for a product
+    
+    **Route**: POST `/seller/products/seller/featured`
+  </Step>
+  
+  <Step title="Featured Product Display">
+    Featured products appear in your shop's featured section
+  </Step>
+</Steps>
+
+<Note>
+Your seller package may limit the number of products you can feature simultaneously.
+</Note>
+
+## Duplicating Products
+
+Create similar products quickly:
+
+**Route**: `/seller/products/duplicate/{id}`
+
+<Steps>
+  <Step title="Find Product to Duplicate">
+    Locate a product with similar attributes
+  </Step>
+  
+  <Step title="Click Duplicate">
+    Click the duplicate button
+  </Step>
+  
+  <Step title="Package Check">
+    System verifies you have available product slots
+  </Step>
+  
+  <Step title="Automatic Copy">
+    Creates a new product with:
+    - All product information copied
+    - Stock configurations duplicated
+    - Tax settings preserved
+    - New product ID assigned
+  </Step>
+  
+  <Step title="Edit Duplicated Product">
+    Modify the new product as needed
+  </Step>
+</Steps>
+
+## Deleting Products
+
+**Route**: `/seller/products/destroy/{id}`
+
+<Steps>
+  <Step title="Select Product">
+    Locate the product to delete
+  </Step>
+  
+  <Step title="Click Delete">
+    Click the delete icon
+  </Step>
+  
+  <Step title="Confirm Deletion">
+    Confirm you want to permanently remove the product
+  </Step>
+  
+  <Step title="Automatic Cleanup">
+    System automatically:
+    - Removes product translations
+    - Detaches categories
+    - Deletes stock records
+    - Removes tax configurations
+    - Cleans up cart and wishlist entries
+  </Step>
+</Steps>
+
+### Bulk Delete
+
+**Route**: POST `/seller/products/bulk-delete`
+
+<Steps>
+  <Step title="Select Multiple Products">
+    Check boxes next to products to delete
+  </Step>
+  
+  <Step title="Choose Bulk Delete">
+    Select "Delete" from bulk actions
+  </Step>
+  
+  <Step title="Confirm Bulk Deletion">
+    Confirm to delete all selected products
+  </Step>
+</Steps>
+
+## Digital Products
+
+If you sell digital products (ebooks, software, etc.):
+
+### Creating Digital Products
+
+**Route**: `/seller/digitalproducts/create`
+
+<Steps>
+  <Step title="Navigate to Digital Products">
+    Go to Products > Digital Products > Add New
+  </Step>
+  
+  <Step title="Upload Digital File">
+    Attach the downloadable file (PDF, ZIP, etc.)
+  </Step>
+  
+  <Step title="Set Product Details">
+    Enter pricing and description
+  </Step>
+  
+  <Step title="Save Digital Product">
+    **Route**: POST `/seller/digitalproducts/store`
+  </Step>
+</Steps>
+
+### Managing Digital Products
+
+- **Edit**: `/seller/digitalproducts/{id}/edit`
+- **Update**: POST `/seller/digitalproducts/update/{product}`
+- **Download**: `/seller/digitalproducts/download/{id}`
+- **Delete**: `/seller/digitalproducts/destroy/{id}`
+
+## Bulk Upload
+
+Upload multiple products via CSV:
+
+**Route**: `/seller/product-bulk-upload/index`
+
+<Steps>
+  <Step title="Download Templates">
+    Get CSV templates:
+    - Category list: `/seller/bulk-upload/download/category`
+    - Brand list: `/seller/bulk-upload/download/brand`
+  </Step>
+  
+  <Step title="Prepare CSV File">
+    Fill in the template with your product data
+  </Step>
+  
+  <Step title="Upload CSV">
+    Upload your completed file
+    
+    **Route**: POST `/seller/product-bulk-upload/store`
+  </Step>
+</Steps>
+
+## Best Practices
+
+### Product Images
+1. Use high-resolution images (min 800x800px)
+2. Show products from multiple angles
+3. Include scale references when relevant
+4. Use consistent backgrounds
+5. Optimize file sizes for faster loading
+
+### Product Descriptions
+1. Write clear, detailed descriptions
+2. Include key features and specifications
+3. Mention materials and dimensions
+4. Highlight unique selling points
+5. Use bullet points for readability
+
+### Pricing Strategy
+1. Research competitor pricing
+2. Factor in all costs (product, shipping, commission)
+3. Consider psychological pricing (e.g., $9.99 vs $10.00)
+4. Offer bundle discounts when appropriate
+
+### SEO Optimization
+1. Use relevant keywords in product names
+2. Write descriptive, keyword-rich descriptions
+3. Add comprehensive tags
+4. Choose accurate categories
+5. Update regularly to maintain relevance
+
+## Troubleshooting
+
+**Q: Why can't I add new products?**  
+A: Check if your seller package is active and hasn't exceeded product limits.
+
+**Q: Product isn't appearing in search**  
+A: Ensure it's published and approved (if approval is required).
+
+**Q: How do I change a product's category?**  
+A: Edit the product and select new categories, then save.
+
+**Q: SKU combinations aren't generating**  
+A: Ensure you've selected at least one option (color or attribute value).
+
+## Related Sections
+
+- [Shop Setup](/seller/shop-setup)
+- [Managing Orders](/seller/managing-orders)
+- [Payments and Withdrawals](/seller/payments-withdrawals)

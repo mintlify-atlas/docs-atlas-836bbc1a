@@ -1,0 +1,118 @@
+---
+title: 'API Overview'
+description: 'Overview of the Ecom API v2'
+---
+
+## Introduction
+
+Welcome to the Ecom e-commerce platform API documentation. This API allows you to build mobile and web applications that interact with the Ecom platform.
+
+## Base URL
+
+All API requests should be made to:
+
+```
+https://your-domain.com/api/v2
+```
+
+## API Version
+
+The current API version is **v2**. All endpoints are prefixed with `/api/v2`.
+
+## Request Format
+
+- All requests should be made over HTTPS
+- Request body should be in JSON format or form-data
+- Set appropriate `Content-Type` header:
+  - `application/json` for JSON requests
+  - `multipart/form-data` for file uploads
+
+## Response Format
+
+All API responses are returned in JSON format with the following structure:
+
+### Success Response
+
+```json
+{
+  "result": true,
+  "message": "Success message",
+  "data": {}
+}
+```
+
+### Error Response
+
+```json
+{
+  "result": false,
+  "message": "Error message"
+}
+```
+
+## HTTP Status Codes
+
+| Status Code | Description |
+|------------|-------------|
+| 200 | Success |
+| 401 | Unauthorized - Invalid or missing authentication |
+| 404 | Not Found - Resource doesn't exist |
+| 422 | Validation Error |
+| 500 | Server Error |
+
+## Pagination
+
+Many list endpoints support pagination with the following parameters:
+
+<ParamField query="page" type="integer" default="1">
+  Page number
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="10">
+  Items per page
+</ParamField>
+
+Paginated responses include:
+
+```json
+{
+  "data": [],
+  "current_page": 1,
+  "last_page": 5,
+  "per_page": 10,
+  "total": 50
+}
+```
+
+## Rate Limiting
+
+API requests are rate-limited to prevent abuse. If you exceed the rate limit, you'll receive a 429 status code.
+
+## Language Support
+
+The API supports multiple languages. Include the language preference in your requests:
+
+<ParamField header="Accept-Language" type="string" default="en">
+  Language code (e.g., en, es, fr)
+</ParamField>
+
+## Error Handling
+
+The API uses standard HTTP status codes and returns detailed error messages to help you debug issues.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="lock" href="/api/authentication">
+    Learn how to authenticate with the API
+  </Card>
+  <Card title="Products" icon="box" href="/api/products">
+    Browse and search products
+  </Card>
+  <Card title="Cart" icon="cart-shopping" href="/api/cart">
+    Manage shopping cart
+  </Card>
+  <Card title="Orders" icon="receipt" href="/api/orders">
+    Create and manage orders
+  </Card>
+</CardGroup>

@@ -1,0 +1,510 @@
+---
+title: Database Setup
+description: Configure and set up the database for Ecom e-commerce platform
+---
+
+## Database Overview
+
+Ecom uses Laravel's database abstraction layer and supports multiple database systems. The database configuration is defined in `config/database.php` with environment-specific values from `.env`.
+
+## Supported Database Systems
+
+Ecom supports the following database systems (defined in `config/database.php:34`):
+
+<CardGroup cols={2}>
+  <Card title="MySQL" icon="database">
+    Default and recommended database system
+  </Card>
+  <Card title="PostgreSQL" icon="database">
+    Advanced open-source database
+  </Card>
+  <Card title="SQLite" icon="database">
+    Lightweight file-based database
+  </Card>
+  <Card title="SQL Server" icon="database">
+    Microsoft SQL Server support
+  </Card>
+</CardGroup>
+
+## Database Configuration
+
+### MySQL Setup (Recommended)
+
+MySQL is the default database connection (`config/database.php:16`):
+
+<Steps>
+  <Step title="Create Database">
+    Create a new MySQL database:
+    
+    ```sql
+    CREATE DATABASE ecom_database CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    ```
+    
+    Create a database user:
+    
+    ```sql
+    CREATE USER 'ecom_user'@'localhost' IDENTIFIED BY 'secure_password';
+    GRANT ALL PRIVILEGES ON ecom_database.* TO 'ecom_user'@'localhost';
+    FLUSH PRIVILEGES;
+    ```
+  </Step>
+
+  <Step title="Configure Environment">
+    Update your `.env` file with MySQL credentials:
+    
+    ```bash .env
+    DB_CONNECTION=mysql
+    DB_HOST=127.0.0.1
+    DB_PORT=3306
+    DB_DATABASE=ecom_database
+    DB_USERNAME=ecom_user
+    DB_PASSWORD=secure_password
+    ```
+  </Step>
+
+  <Step title="Test Connection">
+    Verify database connection:
+    
+    ```bash
+    php artisan migrate:status
+    ```
+    
+    If successful, you'll see the migration table status.
+  </Step>
+</Steps>
+
+#### MySQL Configuration Details
+
+MySQL connection settings from `config/database.php:42`:
+
+```php
+'mysql' => [
+    'driver' => 'mysql',
+    'host' => env('DB_HOST', '127.0.0.1'),
+    'port' => env('DB_PORT', '3306'),
+    'database' => env('DB_DATABASE', 'forge'),
+    'username' => env('DB_USERNAME', 'forge'),
+    'password' => env('DB_PASSWORD', ''),
+    'unix_socket' => env('DB_SOCKET', ''),
+    'charset' => 'utf8mb4',
+    'collation' => 'utf8mb4_unicode_ci',
+    'prefix' => '',
+    'strict' => false,
+    'engine' => null,
+],
+```
+
+<Info>
+Ecom uses `utf8mb4` charset for full Unicode support, including emojis and special characters.
+</Info>
+
+### PostgreSQL Setup
+
+PostgreSQL configuration from `config/database.php:57`:
+
+<Steps>
+  <Step title="Create Database">
+    ```sql
+    CREATE DATABASE ecom_database;
+    CREATE USER ecom_user WITH PASSWORD 'secure_password';
+    GRANT ALL PRIVILEGES ON DATABASE ecom_database TO ecom_user;
+    ```
+  </Step>
+
+  <Step title="Configure Environment">
+    ```bash .env
+    DB_CONNECTION=pgsql
+    DB_HOST=127.0.0.1
+    DB_PORT=5432
+    DB_DATABASE=ecom_database
+    DB_USERNAME=ecom_user
+    DB_PASSWORD=secure_password
+    ```
+  </Step>
+</Steps>
+
+PostgreSQL settings:
+
+```php
+'pgsql' => [
+    'driver' => 'pgsql',
+    'host' => env('DB_HOST', '127.0.0.1'),
+    'port' => env('DB_PORT', '5432'),
+    'database' => env('DB_DATABASE', 'forge'),
+    'username' => env('DB_USERNAME', 'forge'),
+    'password' => env('DB_PASSWORD', ''),
+    'charset' => 'utf8',
+    'prefix' => '',
+    'schema' => 'public',
+    'sslmode' => 'prefer',
+],
+```
+
+### SQLite Setup
+
+SQLite configuration from `config/database.php:36`:
+
+<Steps>
+  <Step title="Create Database File">
+    ```bash
+    touch database/database.sqlite
+    ```
+  </Step>
+
+  <Step title="Configure Environment">
+    ```bash .env
+    DB_CONNECTION=sqlite
+    DB_DATABASE=/absolute/path/to/database/database.sqlite
+    ```
+  </Step>
+</Steps>
+
+<Note>
+SQLite is suitable for development and testing but not recommended for production.
+</Note>
+
+## Database Migrations
+
+Ecom uses Laravel migrations to manage database schema. Migration table is tracked in `migrations` table (`config/database.php:94`).
+
+### Running Migrations
+
+<Steps>
+  <Step title="Check Migration Status">
+    ```bash
+    php artisan migrate:status
+    ```
+    
+    Shows which migrations have been run.
+  </Step>
+
+  <Step title="Run All Migrations">
+    ```bash
+    php artisan migrate
+    ```
+    
+    Creates all database tables.
+  </Step>
+
+  <Step title="Run with Seed Data (Optional)">
+    ```bash
+    php artisan migrate --seed
+    ```
+    
+    Runs migrations and populates with seed data.
+  </Step>
+</Steps>
+
+### Core Database Tables
+
+Ecom creates the following core tables:
+
+#### Users Table
+
+Defined in `database/migrations/2014_10_12_000000_create_users_table.php:16`:
+
+```php
+Schema::create('users', function (Blueprint $table) {
+    $table->increments('id');
+    $table->string('name');
+    $table->string('email')->unique();
+    $table->timestamp('email_verified_at')->nullable();
+    $table->string('password');
+    $table->rememberToken();
+    $table->timestamps();
+});
+```
+
+**Fields:**
+- `id` - Unique user identifier
+- `name` - User full name
+- `email` - Unique email address
+- `email_verified_at` - Email verification timestamp
+- `password` - Hashed password
+- `remember_token` - Remember me token
+- `created_at`, `updated_at` - Timestamps
+
+#### Password Resets Table
+
+Defined in `database/migrations/2014_10_12_100000_create_password_resets_table.php`:
+
+```php
+Schema::create('password_resets', function (Blueprint $table) {
+    $table->string('email')->index();
+    $table->string('token');
+    $table->timestamp('created_at')->nullable();
+});
+```
+
+#### Personal Access Tokens Table
+
+For Laravel Sanctum API authentication (`database/migrations/2019_12_14_000001_create_personal_access_tokens_table.php`):
+
+```php
+Schema::create('personal_access_tokens', function (Blueprint $table) {
+    $table->id();
+    $table->morphs('tokenable');
+    $table->string('name');
+    $table->string('token', 64)->unique();
+    $table->text('abilities')->nullable();
+    $table->timestamp('last_used_at')->nullable();
+    $table->timestamps();
+});
+```
+
+#### Product Queries Table
+
+Defined in `database/migrations/2022_06_29_075906_create_product_queries_table.php:16`:
+
+```php
+Schema::create('product_queries', function (Blueprint $table) {
+    $table->id();
+    $table->integer('customer_id');
+    $table->integer('seller_id')->nullable();
+    $table->integer('product_id');
+    $table->longText('question');
+    $table->longText('reply')->nullable();
+    $table->timestamps();
+});
+```
+
+**Fields:**
+- `id` - Query identifier
+- `customer_id` - Customer who asked
+- `seller_id` - Seller who replied
+- `product_id` - Related product
+- `question` - Customer question
+- `reply` - Seller reply
+- `created_at`, `updated_at` - Timestamps
+
+#### Products Table Updates
+
+The products table includes hover image support (`database/migrations/2026_03_02_000001_add_thumbnail_hover_img_to_products_table.php:16`):
+
+```php
+Schema::table('products', function (Blueprint $table) {
+    if (!Schema::hasColumn('products', 'thumbnail_hover_img')) {
+        $table->string('thumbnail_hover_img')->nullable()->after('thumbnail_img');
+    }
+});
+```
+
+## Migration Commands
+
+<CodeGroup>
+```bash Run Migrations
+php artisan migrate
+```
+
+```bash Rollback Last Migration
+php artisan migrate:rollback
+```
+
+```bash Rollback All Migrations
+php artisan migrate:reset
+```
+
+```bash Refresh Database
+php artisan migrate:refresh
+```
+
+```bash Fresh Migration (Drop All)
+php artisan migrate:fresh
+```
+
+```bash Migration with Seeding
+php artisan migrate:fresh --seed
+```
+</CodeGroup>
+
+<Warning>
+**Production Warning:**
+- Never use `migrate:fresh` or `migrate:refresh` in production
+- Always backup your database before running migrations
+- Test migrations in staging environment first
+</Warning>
+
+## Database Seeding
+
+Seeding populates your database with test data:
+
+```bash
+# Run all seeders
+php artisan db:seed
+
+# Run specific seeder
+php artisan db:seed --class=UsersTableSeeder
+```
+
+Seeders are located in `database/seeds/` (defined in `composer.json:60`).
+
+## Redis Configuration
+
+Redis is configured for caching and queues (`config/database.php:107`):
+
+```php
+'redis' => [
+    'client' => 'predis',
+    
+    'default' => [
+        'host' => env('REDIS_HOST', '127.0.0.1'),
+        'password' => env('REDIS_PASSWORD', null),
+        'port' => env('REDIS_PORT', 6379),
+        'database' => env('REDIS_DB', 0),
+    ],
+    
+    'cache' => [
+        'host' => env('REDIS_HOST', '127.0.0.1'),
+        'password' => env('REDIS_PASSWORD', null),
+        'port' => env('REDIS_PORT', 6379),
+        'database' => env('REDIS_CACHE_DB', 1),
+    ],
+],
+```
+
+Ecom uses `predis` client for Redis operations.
+
+### Setting Up Redis
+
+```bash .env
+REDIS_HOST=127.0.0.1
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+REDIS_DB=0
+REDIS_CACHE_DB=1
+```
+
+## Database Optimization
+
+### Indexing
+
+Ensure proper indexes for better performance:
+
+```bash
+php artisan migrate
+```
+
+All migrations include proper indexes on foreign keys and frequently queried columns.
+
+### Query Optimization
+
+<Tabs>
+  <Tab title="Enable Query Logging">
+    ```php
+    DB::enableQueryLog();
+    // Your queries
+    dd(DB::getQueryLog());
+    ```
+  </Tab>
+  
+  <Tab title="Use Query Builder">
+    ```php
+    // Efficient
+    DB::table('products')->where('active', 1)->get();
+    
+    // Less efficient
+    Product::all()->where('active', 1);
+    ```
+  </Tab>
+  
+  <Tab title="Eager Loading">
+    ```php
+    // Prevents N+1 queries
+    $products = Product::with('category', 'images')->get();
+    ```
+  </Tab>
+</Tabs>
+
+## Backup & Restore
+
+### Backup Database
+
+Ecom includes Spatie DB Dumper package:
+
+```bash
+# MySQL Backup
+mysqldump -u username -p database_name > backup.sql
+
+# PostgreSQL Backup
+pg_dump -U username database_name > backup.sql
+```
+
+### Restore Database
+
+```bash
+# MySQL Restore
+mysql -u username -p database_name < backup.sql
+
+# PostgreSQL Restore
+psql -U username database_name < backup.sql
+```
+
+<Warning>
+Always test your backup and restore procedures regularly.
+</Warning>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Connection Refused">
+    **Error:** `SQLSTATE[HY000] [2002] Connection refused`
+    
+    **Solutions:**
+    - Verify database server is running
+    - Check DB_HOST and DB_PORT in `.env`
+    - Ensure firewall allows database connections
+    - Test connection: `mysql -u username -p`
+  </Accordion>
+
+  <Accordion title="Access Denied">
+    **Error:** `SQLSTATE[HY000] [1045] Access denied`
+    
+    **Solutions:**
+    - Verify DB_USERNAME and DB_PASSWORD
+    - Check user has proper privileges
+    - Recreate user with correct permissions
+  </Accordion>
+
+  <Accordion title="Database Not Found">
+    **Error:** `SQLSTATE[HY000] [1049] Unknown database`
+    
+    **Solutions:**
+    - Create the database: `CREATE DATABASE database_name;`
+    - Verify DB_DATABASE value in `.env`
+  </Accordion>
+
+  <Accordion title="Migration Failed">
+    **Error:** Migration errors during `php artisan migrate`
+    
+    **Solutions:**
+    - Check migration status: `php artisan migrate:status`
+    - Review error message for specific table/column issues
+    - Rollback and retry: `php artisan migrate:rollback`
+    - Check database user has CREATE, ALTER, DROP privileges
+  </Accordion>
+
+  <Accordion title="Character Encoding Issues">
+    **Error:** Special characters not displaying correctly
+    
+    **Solutions:**
+    - Ensure database uses `utf8mb4` charset
+    - Set collation to `utf8mb4_unicode_ci`
+    - Update my.cnf/my.ini:
+    ```ini
+    [mysqld]
+    character-set-server=utf8mb4
+    collation-server=utf8mb4_unicode_ci
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Setup" icon="server" href="/setup/environment">
+    Configure environment variables
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/setup/deployment">
+    Deploy to production
+  </Card>
+</CardGroup>

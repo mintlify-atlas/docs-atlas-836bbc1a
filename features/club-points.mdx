@@ -1,0 +1,367 @@
+---
+title: Club Points Loyalty
+description: Reward customer loyalty with a points-based rewards system
+---
+
+## Overview
+
+The Club Points system is a loyalty rewards program that allows customers to earn points through purchases and other activities. Points can be redeemed for discounts on future orders.
+
+<Note>
+Club Points help increase customer retention and encourage repeat purchases by rewarding loyal customers.
+</Note>
+
+## Database Structure
+
+### ClubPoint Model
+
+Location: `app/Models/ClubPoint.php:1`
+
+**Relationships:**
+- `user()` - BelongsTo relationship with User model (app/Models/ClubPoint.php:9)
+- `order()` - BelongsTo relationship with Order model (app/Models/ClubPoint.php:13)
+- `club_point_details()` - HasMany relationship with ClubPointDetail (app/Models/ClubPoint.php:17)
+
+**Key Fields:**
+- `user_id` - Customer who owns the points
+- `order_id` - Associated order (if points earned from purchase)
+- `points` - Number of points earned or spent
+- `convert_status` - Whether points have been converted/redeemed
+
+## How Club Points Work
+
+### Earning Points
+
+Customers can earn club points through:
+
+1. **Making Purchases** - Points awarded based on order total
+2. **Product Reviews** - Earn points for leaving product reviews
+3. **Referrals** - Get points when referred users make purchases
+4. **Special Promotions** - Bonus points during promotional periods
+
+### Point Relationships
+
+The ClubPoint model connects three key entities:
+
+```php
+public function user(){
+    return $this->belongsTo(User::class);
+}
+
+public function order(){
+    return $this->belongsTo(Order::class);
+}
+
+public function club_point_details(){
+    return $this->hasMany(ClubPointDetail::class);
+}
+```
+
+### User Balance
+
+Each user maintains a club points balance that:
+- Increases when points are earned
+- Decreases when points are redeemed
+- Has a detailed transaction history via `club_point_details`
+
+## Point Transactions
+
+### Earning Points Transaction
+
+When a customer earns points:
+
+1. Create a new `ClubPoint` record
+2. Associate with the user and order (if applicable)
+3. Set positive point value
+4. Update user's total balance
+5. Create detail records for tracking
+
+### Redeeming Points Transaction
+
+When a customer redeems points:
+
+1. Verify sufficient balance
+2. Create a new `ClubPoint` record with negative value
+3. Mark as converted (`convert_status`)
+4. Update user's remaining balance
+5. Apply discount to order
+
+## Club Point Details
+
+The `club_point_details` relationship tracks:
+
+- Individual point transactions
+- Point expiration dates
+- Conversion history
+- Transaction descriptions
+- Point sources and uses
+
+```php
+public function club_point_details(){
+    return $this->hasMany(ClubPointDetail::class);
+}
+```
+
+## Configuration
+
+### Point Earning Rules
+
+Administrators can configure:
+
+- **Points per currency unit** - How many points per dollar/euro spent
+- **Minimum order value** - Minimum purchase to earn points
+- **Product exclusions** - Products that don't earn points
+- **Point multipliers** - Special categories with bonus points
+
+### Point Redemption Rules
+
+- **Minimum redemption threshold** - Minimum points needed to redeem
+- **Maximum redemption per order** - Cap on points usable per transaction
+- **Point value** - Monetary value of each point
+- **Redemption restrictions** - Products or categories where points can't be used
+
+## Integration with Orders
+
+The `order()` relationship links points to specific purchases:
+
+```php
+public function order(){
+    return $this->belongsTo(Order::class);
+}
+```
+
+This allows:
+- Tracking which orders generated points
+- Viewing point history per order
+- Refunding points if orders are cancelled
+- Validating point awards based on order status
+
+## User Interface
+
+### Customer Dashboard
+
+Customers can view:
+- Current point balance
+- Point earning history
+- Redemption history
+- Point expiration dates
+- Available rewards
+
+### Checkout Integration
+
+During checkout, customers can:
+- See available points
+- Choose how many points to redeem
+- View discount amount
+- See remaining balance after redemption
+
+## Point Lifecycle
+
+<Steps>
+  <Step title="Customer Makes Purchase">
+    Order is placed and payment is confirmed
+  </Step>
+  
+  <Step title="Points Calculated">
+    System calculates points based on:
+    - Order total
+    - Configured point rate
+    - Any active promotions
+    - Product-specific rules
+  </Step>
+  
+  <Step title="Points Awarded">
+    ClubPoint record created and linked to:
+    - User account
+    - Specific order
+    - Point details for tracking
+  </Step>
+  
+  <Step title="Points Become Available">
+    Points may have a validation period before use:
+    - Immediate availability, or
+    - After order is delivered, or
+    - After return period expires
+  </Step>
+  
+  <Step title="Customer Redeems Points">
+    During next checkout:
+    - Select points to use
+    - Discount applied
+    - Negative ClubPoint record created
+    - Balance updated
+  </Step>
+</Steps>
+
+## Point Expiration
+
+Manage point expiration through `club_point_details`:
+
+- Set expiration dates for earned points
+- Send notifications before points expire
+- Automatically remove expired points
+- Track expiration history
+
+<Warning>
+Always notify customers before points expire to maintain trust and encourage redemption.
+</Warning>
+
+## Conversion Status
+
+The `convert_status` field tracks:
+
+- **0** - Points are available/pending
+- **1** - Points have been converted/redeemed
+- **2** - Points have expired
+- **3** - Points were refunded (order cancelled)
+
+## Best Practices
+
+### Point Value
+
+<Note>
+**Setting Point Values:**
+- Keep math simple (e.g., 1 point = $0.01 or 100 points = $1)
+- Make earning feel rewarding (e.g., 10 points per dollar vs 0.1 points)
+- Set redemption thresholds that encourage accumulation
+- Balance generosity with profitability
+</Note>
+
+### Communication
+
+- Show point balance prominently in user account
+- Display points earned on order confirmation
+- Send emails when points are about to expire
+- Highlight point value during redemption
+
+### Engagement
+
+- Offer bonus point promotions periodically
+- Create point milestones with special rewards
+- Show progress toward next reward tier
+- Gamify the experience with achievements
+
+## Reporting and Analytics
+
+### Key Metrics to Track
+
+- Total points issued
+- Points redeemed vs earned
+- Average customer point balance
+- Point liability (outstanding unredeemed points)
+- Redemption rate percentage
+- Most popular redemption amounts
+
+### Financial Tracking
+
+Club points represent a financial liability:
+
+1. **Calculate point liability** - Total unredeemed points × point value
+2. **Track point expense** - Cost of redeemed points
+3. **Monitor point breakage** - Points that expire unused
+4. **Measure ROI** - Increased customer lifetime value vs point costs
+
+## Example Scenarios
+
+### Scenario 1: Purchase Points
+
+```
+Customer: John Doe
+Order Total: $100
+Point Rate: 10 points per $1
+Points Earned: 1,000 points
+
+ClubPoint Record:
+- user_id: 123
+- order_id: 456
+- points: 1000
+- convert_status: 0 (available)
+```
+
+### Scenario 2: Point Redemption
+
+```
+Customer: John Doe
+Available Points: 1,000
+Points to Redeem: 500
+Point Value: 100 points = $1
+Discount Applied: $5
+
+ClubPoint Record:
+- user_id: 123
+- order_id: 789
+- points: -500
+- convert_status: 1 (redeemed)
+
+New Balance: 500 points
+```
+
+### Scenario 3: Order Cancellation
+
+```
+Original Order: Cancelled
+Points Earned: 1,000
+Action: Refund points
+
+ClubPoint Record:
+- user_id: 123
+- order_id: 456
+- points: -1000
+- convert_status: 3 (refunded)
+
+Note: Reverses original point award
+```
+
+## Integration Points
+
+### With User Accounts
+
+- Display point balance in account dashboard
+- Show point history and transactions
+- Enable point-to-wallet conversion (if supported)
+
+### With Orders
+
+- Award points on order completion
+- Allow point redemption at checkout
+- Handle point refunds on cancellations
+- Track point source per order
+
+### With Products
+
+- Mark products as point-eligible or excluded
+- Set bonus point multipliers per product
+- Display potential points on product pages
+
+## Security Considerations
+
+<Warning>
+**Prevent Point Abuse:**
+- Validate point awards match actual order totals
+- Prevent duplicate point awards for same order
+- Verify user ownership before redemption
+- Monitor for suspicious point accumulation patterns
+- Log all point transactions with timestamps
+- Implement rate limiting on point operations
+</Warning>
+
+## Migration and Seeding
+
+When implementing club points:
+
+1. Create database tables for ClubPoint and ClubPointDetail
+2. Add point balance field to users table (for quick access)
+3. Set up default configuration values
+4. Optionally award welcome bonus points to existing customers
+5. Create scheduled tasks for point expiration
+
+## Future Enhancements
+
+Consider adding:
+
+- **Point tiers** - Silver, Gold, Platinum status levels
+- **Point sharing** - Transfer points between users
+- **Point gifting** - Buy points for others
+- **Dynamic rates** - Surge point earning during slow periods
+- **Partner points** - Earn points from affiliated services
+- **Charitable donations** - Donate points to causes

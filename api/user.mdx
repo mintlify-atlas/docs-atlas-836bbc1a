@@ -1,0 +1,442 @@
+---
+title: 'User Profile'
+description: 'Manage user profile and settings'
+---
+
+<Note>
+All user profile endpoints require authentication with `auth:sanctum`.
+</Note>
+
+## Get Profile Counters
+
+<api method="GET" endpoint="/api/v2/profile/counters" auth="sanctum">
+  Get user's cart, wishlist, and order counts
+</api>
+
+### Response
+
+```json
+{
+  "cart_item_count": 3,
+  "wishlist_item_count": 5,
+  "order_count": 12
+}
+```
+
+### Example
+
+```bash
+curl -X GET https://your-domain.com/api/v2/profile/counters \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+## Update Profile
+
+<api method="POST" endpoint="/api/v2/profile/update" auth="sanctum">
+  Update user profile information
+</api>
+
+### Request
+
+<ParamField body="name" type="string">
+  User's full name
+</ParamField>
+
+<ParamField body="phone" type="string">
+  Phone number
+</ParamField>
+
+<ParamField body="password" type="string">
+  New password (if changing password)
+</ParamField>
+
+### Response
+
+```json
+{
+  "result": true,
+  "message": "Profile information updated"
+}
+```
+
+### Example
+
+```bash
+curl -X POST https://your-domain.com/api/v2/profile/update \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "John Doe",
+    "phone": "+1234567890"
+  }'
+```
+
+## Update Device Token
+
+<api method="POST" endpoint="/api/v2/profile/update-device-token" auth="sanctum">
+  Update device token for push notifications
+</api>
+
+### Request
+
+<ParamField body="device_token" type="string" required>
+  FCM device token
+</ParamField>
+
+### Response
+
+```json
+{
+  "result": true,
+  "message": "device token updated"
+}
+```
+
+## Update Profile Image
+
+<api method="POST" endpoint="/api/v2/profile/update-image" auth="sanctum">
+  Update user profile picture
+</api>
+
+### Request
+
+<ParamField body="image" type="string" required>
+  Base64 encoded image
+</ParamField>
+
+<ParamField body="filename" type="string" required>
+  Image filename with extension
+</ParamField>
+
+### Response
+
+<ResponseField name="result" type="boolean">
+  Success status
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Success or error message
+</ResponseField>
+
+<ResponseField name="path" type="string">
+  URL to uploaded image
+</ResponseField>
+
+### Example
+
+```bash
+curl -X POST https://your-domain.com/api/v2/profile/update-image \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image": "base64_encoded_image_data",
+    "filename": "profile.jpg"
+  }'
+```
+
+<Note>
+Supported image formats: jpg, jpeg, png, svg, webp, gif
+</Note>
+
+## Upload Generic Image
+
+<api method="POST" endpoint="/api/v2/profile/image-upload" auth="sanctum">
+  Upload any image (not just profile picture)
+</api>
+
+### Request
+
+<ParamField body="image" type="string" required>
+  Base64 encoded image
+</ParamField>
+
+<ParamField body="filename" type="string" required>
+  Image filename with extension
+</ParamField>
+
+### Response
+
+<ResponseField name="result" type="boolean">
+  Success status
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Success or error message
+</ResponseField>
+
+<ResponseField name="path" type="string">
+  URL to uploaded image
+</ResponseField>
+
+<ResponseField name="upload_id" type="integer">
+  Upload ID for reference
+</ResponseField>
+
+## Check Phone and Email Availability
+
+<api method="POST" endpoint="/api/v2/profile/check-phone-and-email" auth="sanctum">
+  Check if user has phone and email set
+</api>
+
+### Response
+
+```json
+{
+  "phone_available": true,
+  "email_available": true,
+  "phone_available_message": "User phone number found",
+  "email_available_message": "User email found"
+}
+```
+
+## Get Customer Info
+
+<api method="GET" endpoint="/api/v2/customer/info" auth="sanctum">
+  Get detailed customer information
+</api>
+
+## Shipping Addresses
+
+### Get All Addresses
+
+<api method="GET" endpoint="/api/v2/user/shipping/address" auth="sanctum">
+  Get all user shipping addresses
+</api>
+
+### Create Address
+
+<api method="POST" endpoint="/api/v2/user/shipping/create" auth="sanctum">
+  Create a new shipping address
+</api>
+
+<ParamField body="address" type="string" required>
+  Street address
+</ParamField>
+
+<ParamField body="country_id" type="integer" required>
+  Country ID
+</ParamField>
+
+<ParamField body="state_id" type="integer" required>
+  State ID
+</ParamField>
+
+<ParamField body="city_id" type="integer" required>
+  City ID
+</ParamField>
+
+<ParamField body="postal_code" type="string" required>
+  Postal/ZIP code
+</ParamField>
+
+<ParamField body="phone" type="string" required>
+  Contact phone number
+</ParamField>
+
+### Update Address
+
+<api method="POST" endpoint="/api/v2/user/shipping/update" auth="sanctum">
+  Update an existing shipping address
+</api>
+
+<ParamField body="address_id" type="integer" required>
+  Address ID to update
+</ParamField>
+
+<ParamField body="address" type="string">
+  Street address
+</ParamField>
+
+<ParamField body="country_id" type="integer">
+  Country ID
+</ParamField>
+
+<ParamField body="state_id" type="integer">
+  State ID
+</ParamField>
+
+<ParamField body="city_id" type="integer">
+  City ID
+</ParamField>
+
+<ParamField body="postal_code" type="string">
+  Postal/ZIP code
+</ParamField>
+
+<ParamField body="phone" type="string">
+  Contact phone number
+</ParamField>
+
+### Update Address Location
+
+<api method="POST" endpoint="/api/v2/user/shipping/update-location" auth="sanctum">
+  Update address latitude and longitude
+</api>
+
+<ParamField body="address_id" type="integer" required>
+  Address ID
+</ParamField>
+
+<ParamField body="latitude" type="number" required>
+  Latitude coordinate
+</ParamField>
+
+<ParamField body="longitude" type="number" required>
+  Longitude coordinate
+</ParamField>
+
+### Make Default Address
+
+<api method="POST" endpoint="/api/v2/user/shipping/make_default" auth="sanctum">
+  Set an address as default
+</api>
+
+<ParamField body="address_id" type="integer" required>
+  Address ID to make default
+</ParamField>
+
+### Delete Address
+
+<api method="GET" endpoint="/api/v2/user/shipping/delete/{address_id}" auth="sanctum">
+  Delete a shipping address
+</api>
+
+### Path Parameters
+
+<ParamField path="address_id" type="integer" required>
+  Address ID to delete
+</ParamField>
+
+## Location Data
+
+### Get Countries
+
+<api method="GET" endpoint="/api/v2/countries" auth="none">
+  Get list of all countries
+</api>
+
+### Get States
+
+<api method="GET" endpoint="/api/v2/states" auth="none">
+  Get list of all states
+</api>
+
+### Get Cities
+
+<api method="GET" endpoint="/api/v2/cities" auth="none">
+  Get list of all cities
+</api>
+
+### Get States by Country
+
+<api method="GET" endpoint="/api/v2/states-by-country/{country_id}" auth="none">
+  Get states for a specific country
+</api>
+
+### Get Cities by State
+
+<api method="GET" endpoint="/api/v2/cities-by-state/{state_id}" auth="none">
+  Get cities for a specific state
+</api>
+
+## Wishlist
+
+### Get Wishlist
+
+<api method="GET" endpoint="/api/v2/wishlists" auth="sanctum">
+  Get user's wishlist items
+</api>
+
+### Check Product in Wishlist
+
+<api method="GET" endpoint="/api/v2/wishlists-check-product" auth="sanctum">
+  Check if a product is in wishlist
+</api>
+
+<ParamField query="product_id" type="integer" required>
+  Product ID to check
+</ParamField>
+
+### Add to Wishlist
+
+<api method="GET" endpoint="/api/v2/wishlists-add-product" auth="sanctum">
+  Add a product to wishlist
+</api>
+
+<ParamField query="product_id" type="integer" required>
+  Product ID to add
+</ParamField>
+
+### Remove from Wishlist
+
+<api method="GET" endpoint="/api/v2/wishlists-remove-product" auth="sanctum">
+  Remove a product from wishlist
+</api>
+
+<ParamField query="product_id" type="integer" required>
+  Product ID to remove
+</ParamField>
+
+## Follow Sellers
+
+### Get Followed Sellers
+
+<api method="GET" endpoint="/api/v2/followed-seller" auth="sanctum">
+  Get list of followed sellers
+</api>
+
+### Follow Seller
+
+<api method="GET" endpoint="/api/v2/followed-seller/store/{id}" auth="sanctum">
+  Follow a seller's shop
+</api>
+
+### Unfollow Seller
+
+<api method="GET" endpoint="/api/v2/followed-seller/remove/{shopId}" auth="sanctum">
+  Unfollow a seller's shop
+</api>
+
+### Check Follow Status
+
+<api method="GET" endpoint="/api/v2/followed-seller/check/{shopId}" auth="sanctum">
+  Check if following a shop
+</api>
+
+## Club Points
+
+### Get Club Points List
+
+<api method="GET" endpoint="/api/v2/clubpoint/get-list" auth="sanctum">
+  Get user's club points history
+</api>
+
+### Convert Points to Wallet
+
+<api method="POST" endpoint="/api/v2/clubpoint/convert-into-wallet" auth="sanctum">
+  Convert club points to wallet balance
+</api>
+
+<ParamField body="points" type="integer" required>
+  Number of points to convert
+</ParamField>
+
+## File Upload
+
+### Image Upload
+
+<api method="POST" endpoint="/api/v2/file/image-upload" auth="sanctum">
+  Upload an image file
+</api>
+
+### General File Upload
+
+<api method="POST" endpoint="/api/v2/file/upload" auth="sanctum">
+  Upload any file type
+</api>
+
+### Get All Files
+
+<api method="GET" endpoint="/api/v2/file-all" auth="sanctum">
+  Get all uploaded files for the user
+</api>

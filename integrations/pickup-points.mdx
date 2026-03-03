@@ -1,0 +1,469 @@
+---
+title: 'Pickup Points'
+description: 'Configure customer pickup locations'
+icon: 'location-dot'
+---
+
+## Overview
+
+Pickup points allow customers to collect their orders from designated locations instead of home delivery. This is ideal for:
+
+- Reducing shipping costs
+- Providing flexibility to customers
+- Serving customers without fixed addresses
+- Operating physical store locations
+- Partner pickup networks
+
+## Features
+
+- Multiple pickup point locations
+- Multilingual support for names and addresses
+- Assign staff members to manage pickup points
+- Enable/disable pickup points
+- Customer selection at checkout
+
+## Configuration
+
+### Accessing Pickup Point Management
+
+<Steps>
+  <Step title="Login to Admin Panel">
+    Access your admin dashboard
+  </Step>
+  
+  <Step title="Navigate to Pickup Points">
+    Go to **Setup & Configurations** → **Shipping** → **Pickup Points**
+  </Step>
+  
+  <Step title="Create Pickup Point">
+    Click **Add New Pickup Point**
+  </Step>
+</Steps>
+
+## Controller Location
+
+```
+app/Http/Controllers/PickupPointController.php
+```
+
+## Database Models
+
+```
+app/Models/PickupPoint.php
+app/Models/PickupPointTranslation.php
+```
+
+### Model Implementation
+
+```php app/Models/PickupPoint.php
+class PickupPoint extends Model
+{
+    protected $with = ['pickup_point_translations'];
+
+    public function getTranslation($field = '', $lang = false){
+        $lang = $lang == false ? App::getLocale() : $lang;
+        $pickup_point_translation = $this->pickup_point_translations->where('lang', $lang)->first();
+        return $pickup_point_translation != null ? $pickup_point_translation->$field : $this->$field;
+    }
+
+    public function pickup_point_translations(){
+        return $this->hasMany(PickupPointTranslation::class);
+    }
+
+    public function staff(){
+        return $this->belongsTo(Staff::class);
+    }
+
+    public function scopeIsActive($query)
+    {
+        return $query->where('pick_up_status', '1');
+    }
+}
+```
+
+## Creating a Pickup Point
+
+```php app/Http/Controllers/PickupPointController.php
+public function store(Request $request)
+{
+    $pickup_point = new PickupPoint;
+    $pickup_point->name = $request->name;
+    $pickup_point->address = $request->address;
+    $pickup_point->phone = $request->phone;
+    $pickup_point->pick_up_status = $request->pick_up_status;
+    $pickup_point->staff_id = $request->staff_id;
+    
+    if ($pickup_point->save()) {
+        // Save translation for default language
+        $pickup_point_translation = PickupPointTranslation::firstOrNew([
+            'lang' => env('DEFAULT_LANGUAGE'), 
+            'pickup_point_id' => $pickup_point->id
+        ]);
+        $pickup_point_translation->name = $request->name;
+        $pickup_point_translation->address = $request->address;
+        $pickup_point_translation->save();
+
+        flash(translate('PicupPoint has been inserted successfully'))->success();
+        return redirect()->route('pick_up_points.index');
+    }
+}
+```
+
+### Required Fields
+
+- **Name**: Pickup point location name
+- **Address**: Full address with landmarks
+- **Phone**: Contact number for the location
+- **Status**: Active/Inactive
+- **Staff**: Assign staff member to manage location
+
+## Multilingual Support
+
+Pickup points support multiple languages:
+
+### Adding Translations
+
+```php app/Http/Controllers/PickupPointController.php
+public function update(Request $request, $id)
+{
+    $pickup_point = PickupPoint::findOrFail($id);
+    
+    // Only update main table if default language
+    if($request->lang == env("DEFAULT_LANGUAGE")){
+        $pickup_point->name = $request->name;
+        $pickup_point->address = $request->address;
+    }
+
+    $pickup_point->phone = $request->phone;
+    $pickup_point->pick_up_status = $request->pick_up_status;
+    $pickup_point->staff_id = $request->staff_id;
+    
+    if ($pickup_point->save()) {
+        // Save translation for requested language
+        $pickup_point_translation = PickupPointTranslation::firstOrNew([
+            'lang' => $request->lang,  
+            'pickup_point_id' => $pickup_point->id
+        ]);
+        $pickup_point_translation->name = $request->name;
+        $pickup_point_translation->address = $request->address;
+        $pickup_point_translation->save();
+
+        flash(translate('PicupPoint has been updated successfully'))->success();
+        return redirect()->route('pick_up_points.index');
+    }
+}
+```
+
+### Getting Translated Content
+
+```php
+$pickup_point = PickupPoint::find(1);
+
+// Get name in current locale
+$name = $pickup_point->getTranslation('name');
+
+// Get name in specific language
+$name_fr = $pickup_point->getTranslation('name', 'fr');
+```
+
+## Staff Assignment
+
+Assign staff members to manage pickup points:
+
+```php
+$pickup_point->staff_id = $request->staff_id;
+```
+
+Benefits:
+- Staff responsible for order handover
+- Track which staff handles which location
+- Manage inventory at pickup points
+- Communication point for customers
+
+## Pickup Point Status
+
+Control availability of pickup points:
+
+```php
+$pickup_point->pick_up_status = 1; // Active
+$pickup_point->pick_up_status = 0; // Inactive
+```
+
+Inactive pickup points won't appear at checkout.
+
+## Retrieving Active Pickup Points
+
+Use the `isActive` scope:
+
+```php
+$active_pickup_points = PickupPoint::isActive()->get();
+```
+
+## Frontend Integration
+
+### Checkout Process
+
+At checkout, customers can choose pickup point delivery:
+
+<Steps>
+  <Step title="Customer Selects Delivery Method">
+    Customer chooses "Pickup from Store" option
+  </Step>
+  
+  <Step title="Display Available Pickup Points">
+    Show list of active pickup points with:
+    - Name
+    - Address
+    - Phone number
+    - Map (optional)
+  </Step>
+  
+  <Step title="Customer Selects Pickup Point">
+    Customer chooses preferred location
+  </Step>
+  
+  <Step title="Order Confirmation">
+    Include pickup point details in order confirmation
+  </Step>
+</Steps>
+
+### Example Implementation
+
+```php
+// In checkout view
+$pickup_points = PickupPoint::isActive()->get();
+
+@foreach($pickup_points as $point)
+    <div class="pickup-point-option">
+        <h4>{{ $point->getTranslation('name') }}</h4>
+        <p>{{ $point->getTranslation('address') }}</p>
+        <p>{{ $point->phone }}</p>
+    </div>
+@endforeach
+```
+
+## Deleting a Pickup Point
+
+```php app/Http/Controllers/PickupPointController.php
+public function destroy($id)
+{
+    $pickup_point = PickupPoint::findOrFail($id);
+    
+    // Delete all translations
+    $pickup_point->pickup_point_translations()->delete();
+
+    if(PickupPoint::destroy($id)){
+        flash(translate('PicupPoint has been deleted successfully'))->success();
+        return redirect()->route('pick_up_points.index');
+    }
+    else{
+        flash(translate('Something went wrong'))->error();
+        return back();
+    }
+}
+```
+
+## Search Functionality
+
+Admin panel includes search:
+
+```php app/Http/Controllers/PickupPointController.php
+public function index(Request $request)
+{
+    $sort_search = null;
+    $pickup_points = PickupPoint::orderBy('created_at', 'desc');
+    
+    if ($request->has('search')){
+        $sort_search = $request->search;
+        $pickup_points = $pickup_points->where('name', 'like', '%'.$sort_search.'%');
+    }
+    
+    $pickup_points = $pickup_points->paginate(10);
+    return view('backend.setup_configurations.pickup_point.index', compact('pickup_points','sort_search'));
+}
+```
+
+## Use Cases
+
+### Physical Store Locations
+
+```yaml
+Name: Downtown Store
+Address: 123 Main Street, City Center, State 12345
+Phone: +1 (555) 123-4567
+Staff: Store Manager
+Status: Active
+```
+
+### Partner Locations
+
+```yaml
+Name: ABC Convenience Store (Partner)
+Address: 456 Oak Avenue, Suburb, State 12346
+Phone: +1 (555) 234-5678
+Staff: Partner Coordinator
+Status: Active
+```
+
+### Warehouse Pickup
+
+```yaml
+Name: Main Warehouse - Customer Pickup
+Address: 789 Industrial Blvd, Warehouse District
+Phone: +1 (555) 345-6789
+Staff: Warehouse Supervisor
+Status: Active
+```
+
+## Benefits for Customers
+
+- **Cost Savings**: No shipping fees for pickup
+- **Flexibility**: Choose convenient pickup time
+- **Security**: No package left at doorstep
+- **Speed**: Often available for same-day pickup
+- **Verification**: Can verify products before leaving
+
+## Benefits for Business
+
+- **Lower Shipping Costs**: Save on delivery expenses
+- **Customer Interaction**: Face-to-face engagement
+- **Reduced Returns**: Customers inspect before taking
+- **Local Presence**: Physical touchpoints in communities
+- **Inventory Distribution**: Spread stock across locations
+
+## Best Practices
+
+<Warning>
+  **Pickup Point Management Tips**
+  
+  - Choose accessible, high-traffic locations
+  - Provide clear directions and landmarks
+  - Ensure adequate parking availability
+  - Set realistic pickup hours
+  - Train staff on order handover procedures
+  - Maintain sufficient storage space
+  - Implement order verification process
+  - Send pickup ready notifications to customers
+  - Set pickup time limits (e.g., 7 days)
+  - Handle uncollected orders appropriately
+</Warning>
+
+## Notifications
+
+Implement customer notifications:
+
+1. **Order Placed**: Confirm pickup point selection
+2. **Order Ready**: Notify when available for pickup
+3. **Reminder**: Send pickup reminder after 2-3 days
+4. **Final Notice**: Last chance before order cancellation
+
+## Pickup Process Workflow
+
+<Steps>
+  <Step title="Customer Places Order">
+    Selects pickup point at checkout
+  </Step>
+  
+  <Step title="Order Prepared">
+    Staff prepares order at pickup location
+  </Step>
+  
+  <Step title="Customer Notified">
+    SMS/Email sent when order ready
+  </Step>
+  
+  <Step title="Customer Arrives">
+    Visits pickup point with order ID
+  </Step>
+  
+  <Step title="Verification">
+    Staff verifies order and customer identity
+  </Step>
+  
+  <Step title="Handover">
+    Customer receives and inspects order
+  </Step>
+  
+  <Step title="Order Completed">
+    Status updated to delivered/collected
+  </Step>
+</Steps>
+
+## Permissions
+
+Requires `pickup_point_setup` permission:
+
+```php app/Http/Controllers/PickupPointController.php
+public function __construct() {
+    $this->middleware(['permission:pickup_point_setup'])->only('index','create','edit','destroy');
+}
+```
+
+## Database Tables
+
+### pickup_points
+
+- id
+- name
+- address
+- phone
+- pick_up_status
+- staff_id
+- created_at
+- updated_at
+
+### pickup_point_translations
+
+- id
+- pickup_point_id
+- lang
+- name
+- address
+- created_at
+- updated_at
+
+## Integration with Orders
+
+When an order uses pickup point:
+
+```php
+$order->shipping_type = 'pickup_point';
+$order->pickup_point_id = $pickup_point->id;
+$order->shipping_address = null; // Not needed for pickup
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Pickup Point Not Showing at Checkout">
+    **Check**:
+    - Pickup point status is active (pick_up_status = 1)
+    - At least one active pickup point exists
+    - Pickup delivery option is enabled in settings
+  </Accordion>
+  
+  <Accordion title="Translation Not Displaying">
+    **Check**:
+    - Translation exists for current language
+    - Language code matches (e.g., 'en', 'fr', 'es')
+    - Falls back to default language if translation missing
+  </Accordion>
+  
+  <Accordion title="Staff Not Receiving Notifications">
+    **Check**:
+    - Staff member is properly assigned
+    - Staff has valid email/phone
+    - Notification system is configured
+  </Accordion>
+</AccordionGroup>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Shipping Carriers" icon="truck" href="/integrations/carriers">
+    Configure shipping carriers
+  </Card>
+  <Card title="Delivery Boys" icon="person-biking" href="/integrations/delivery-boys">
+    Manage delivery personnel
+  </Card>
+</CardGroup>

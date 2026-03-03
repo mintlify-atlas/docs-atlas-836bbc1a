@@ -1,0 +1,306 @@
+---
+title: Coupon System
+description: Create and manage discount coupons for your e-commerce store
+---
+
+## Overview
+
+The Coupon System allows you to create various types of discount codes that customers can apply during checkout. Coupons support different discount types, date ranges, and usage tracking.
+
+## Database Structure
+
+### Coupon Model
+
+Location: `app/Models/Coupon.php:1`
+
+**Fillable Fields:**
+- `user_id` - The admin user who created the coupon
+- `type` - Coupon type (product_base, cart_base, welcome_base)
+- `code` - Unique coupon code
+- `details` - JSON field for additional configuration
+- `discount` - Discount value
+- `discount_type` - Either 'percent' or 'amount'
+- `start_date` - When coupon becomes valid
+- `end_date` - When coupon expires
+
+**Relationships:**
+- `user()` - BelongsTo relationship with User model (app/Models/Coupon.php:13)
+- `userCoupons()` - HasMany relationship tracking user-specific coupons (app/Models/Coupon.php:17)
+- `couponUsages()` - HasMany relationship tracking coupon usage (app/Models/Coupon.php:22)
+
+## Coupon Types
+
+### Product-Based Coupons
+
+Apply discounts to specific products.
+
+**Configuration:**
+- Select specific products
+- Set discount amount or percentage
+- Products are filtered by admin ownership
+
+```php
+$admin_id = \App\Models\User::where('user_type', 'admin')->first()->id;
+$products = filter_products(\App\Models\Product::where('user_id', $admin_id))->get();
+```
+
+### Cart-Based Coupons
+
+Apply discounts to the entire shopping cart.
+
+**Configuration:**
+- Minimum order value (optional)
+- Maximum discount cap (optional)
+- Discount type (percentage or fixed amount)
+
+### Welcome-Based Coupons
+
+Special coupons for new customers or first-time purchases.
+
+**Configuration:**
+- One-time use per customer
+- Welcome discount amount
+- Validity period
+
+## Creating Coupons
+
+<Steps>
+  <Step title="Navigate to Coupons">
+    Go to Admin Dashboard → Marketing → Coupons
+  </Step>
+  
+  <Step title="Click Add New Coupon">
+    Select the coupon type (Product-Based, Cart-Based, or Welcome-Based)
+  </Step>
+  
+  <Step title="Configure Coupon Details">
+    Fill in the required fields:
+    - **Code**: Unique coupon code (e.g., SUMMER2024)
+    - **Discount Type**: Percentage or Fixed Amount
+    - **Discount Value**: The discount amount
+    - **Start Date**: When the coupon becomes active
+    - **End Date**: When the coupon expires
+  </Step>
+  
+  <Step title="Set Type-Specific Options">
+    Depending on the coupon type, configure additional settings:
+    - Product-Based: Select applicable products
+    - Cart-Based: Set minimum cart value
+    - Welcome-Based: Configure first-purchase restrictions
+  </Step>
+  
+  <Step title="Save Coupon">
+    Click Save to create the coupon
+  </Step>
+</Steps>
+
+## Managing Coupons
+
+### Viewing Coupons
+
+All coupons created by the admin are listed in the coupons index (app/Http/Controllers/CouponController.php:27-28):
+
+```php
+$coupons = Coupon::where('user_id', 
+    User::where('user_type', 'admin')->first()->id)
+    ->orderBy('id','desc')
+    ->get();
+```
+
+### Editing Coupons
+
+Location: `app/Http/Controllers/CouponController.php:74-78`
+
+Coupon IDs are encrypted in the URL for security:
+
+```php
+public function edit($id)
+{
+    $coupon = Coupon::findOrFail(decrypt($id));
+    return view('backend.marketing.coupons.edit', compact('coupon'));
+}
+```
+
+### Updating Coupon Status
+
+Location: `app/Http/Controllers/CouponController.php:140-148`
+
+Toggle coupon active/inactive status without deleting:
+
+```php
+public function updateStatus(Request $request)
+{
+    $coupon = Coupon::findOrFail($request->id);
+    $coupon->status = $request->status;
+    if ($coupon->save()) {
+        return 1;
+    }
+    return 0;
+}
+```
+
+### Deleting Coupons
+
+Location: `app/Http/Controllers/CouponController.php:100-105`
+
+```php
+public function destroy($id)
+{
+    Coupon::destroy($id);
+    flash(translate('Coupon has been deleted successfully'))->success();
+    return redirect()->route('coupon.index');
+}
+```
+
+## Permissions
+
+The following permissions control access to coupon features (app/Http/Controllers/CouponController.php:12-18):
+
+- `view_all_coupons` - View coupons list
+- `add_coupon` - Create new coupons
+- `edit_coupon` - Modify existing coupons
+- `delete_coupon` - Remove coupons
+
+## Dynamic Form Loading
+
+### Create Forms
+
+Location: `app/Http/Controllers/CouponController.php:107-120`
+
+The system dynamically loads the appropriate form based on coupon type:
+
+```php
+public function get_coupon_form(Request $request)
+{
+    if($request->coupon_type == "product_base") {
+        $admin_id = \App\Models\User::where('user_type', 'admin')->first()->id;
+        $products = filter_products(\App\Models\Product::where('user_id', $admin_id))->get();
+        return view('partials.coupons.product_base_coupon', compact('products'));
+    }
+    elseif($request->coupon_type == "cart_base"){
+        return view('partials.coupons.cart_base_coupon');
+    }
+    elseif($request->coupon_type == "welcome_base"){
+        return view('partials.coupons.welcome_base_coupon');
+    }
+}
+```
+
+### Edit Forms
+
+Location: `app/Http/Controllers/CouponController.php:122-138`
+
+Similar dynamic loading for edit forms with existing coupon data.
+
+## Validation
+
+Coupons use the `CouponRequest` for validation (app/Http/Controllers/CouponController.php:47):
+
+```php
+public function store(CouponRequest $request)
+{   
+    $user_id = User::where('user_type', 'admin')->first()->id;
+    Coupon::create($request->validated() + [
+        'user_id' => $user_id,
+    ]);
+    flash(translate('Coupon has been saved successfully'))->success();
+    return redirect()->route('coupon.index');
+}
+```
+
+## Usage Tracking
+
+The Coupon model includes relationships for tracking usage:
+
+### UserCoupons
+
+Tracks which users have access to specific coupons:
+
+```php
+public function userCoupons()
+{
+    return $this->hasMany(UserCoupon::class);
+}
+```
+
+### CouponUsages
+
+Tracks when and how coupons are used:
+
+```php
+public function couponUsages()
+{
+    return $this->hasMany(CouponUsage::class);
+}
+```
+
+## Best Practices
+
+<Note>
+**Coupon Code Naming:**
+- Use memorable, easy-to-type codes
+- Avoid confusing characters (O vs 0, I vs l)
+- Include context (e.g., SUMMER2024, NEWUSER15)
+- Keep codes concise (8-12 characters recommended)
+</Note>
+
+<Warning>
+**Security Considerations:**
+- Coupon codes are case-sensitive by default
+- IDs are encrypted in URLs to prevent enumeration attacks
+- Always set expiration dates to prevent indefinite usage
+- Monitor coupon usage to detect abuse
+</Warning>
+
+## Example Use Cases
+
+### Seasonal Sale Coupon
+
+- **Type**: Cart-Based
+- **Code**: SUMMER2024
+- **Discount**: 20% off
+- **Minimum**: $50 cart value
+- **Duration**: June 1 - August 31
+
+### Product Launch Promotion
+
+- **Type**: Product-Based
+- **Code**: NEWPRODUCT10
+- **Discount**: $10 off
+- **Products**: Specific new arrivals
+- **Duration**: 2 weeks
+
+### New Customer Welcome
+
+- **Type**: Welcome-Based
+- **Code**: WELCOME15
+- **Discount**: 15% off
+- **Usage**: First purchase only
+- **Duration**: 90 days
+
+## API Endpoints
+
+### List Coupons
+```php
+GET /admin/marketing/coupons
+```
+
+### Create Coupon
+```php
+POST /admin/marketing/coupons
+```
+
+### Update Coupon
+```php
+PUT /admin/marketing/coupons/{coupon}
+```
+
+### Delete Coupon
+```php
+DELETE /admin/marketing/coupons/{id}
+```
+
+### Update Status
+```php
+POST /admin/marketing/coupons/update-status
+```

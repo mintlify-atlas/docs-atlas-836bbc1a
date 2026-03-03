@@ -1,0 +1,313 @@
+---
+title: Seller Management
+description: Manage sellers, verify shops, and control seller access in your multi-vendor marketplace
+---
+
+## Overview
+
+The seller management system provides comprehensive tools for managing vendors in your multi-vendor marketplace. Control seller registration, verify shops, manage permissions, and handle seller accounts.
+
+<CardGroup cols={2}>
+  <Card title="Seller Verification" icon="badge-check">
+    Approve or reject seller verification requests with notification system
+  </Card>
+  <Card title="Account Control" icon="user-lock">
+    Ban/unban sellers and manage account status
+  </Card>
+  <Card title="Login as Seller" icon="right-to-bracket">
+    Admin can log in as any seller to provide support
+  </Card>
+  <Card title="Bulk Operations" icon="layer-group">
+    Delete multiple sellers at once
+  </Card>
+</CardGroup>
+
+## Model Structure
+
+### Seller Model
+
+The `Seller` model manages vendor accounts and their relationships:
+
+```php
+class Seller extends Model
+{
+    protected $with = ['user', 'user.shop'];
+
+    public function user(){
+        return $this->belongsTo(User::class);
+    }
+
+    public function payments(){
+        return $this->hasMany(Payment::class);
+    }
+
+    public function seller_package(){
+        return $this->belongsTo(SellerPackage::class);
+    }
+}
+```
+
+**Key Relationships:**
+- `user` - Links to User account
+- `payments` - Tracks all seller payments
+- `seller_package` - Current subscription package
+
+## Core Features
+
+### Creating Sellers
+
+Create new seller accounts from the admin panel:
+
+<Steps>
+  <Step title="Validate Email">
+    Check if the email already exists in the system
+  </Step>
+  <Step title="Create User Account">
+    Create user with type "seller" and hashed password
+  </Step>
+  <Step title="Create Seller Record">
+    Link seller record to the user account
+  </Step>
+  <Step title="Generate Shop">
+    Automatically create a shop with slug `demo-shop-{user_id}`
+  </Step>
+  <Step title="Send Verification">
+    Send email verification if enabled in settings
+  </Step>
+</Steps>
+
+**Implementation** (`app/Http/Controllers/SellerController.php:79`):
+
+```php
+public function store(Request $request)
+{
+    if (User::where('email', $request->email)->first() != null) {
+        flash(translate('Email already exists!'))->error();
+        return back();
+    }
+    
+    $user = new User;
+    $user->name = $request->name;
+    $user->email = $request->email;
+    $user->user_type = "seller";
+    $user->password = Hash::make($request->password);
+
+    if ($user->save()) {
+        if (get_setting('email_verification') != 1) {
+            $user->email_verified_at = date('Y-m-d H:m:s');
+        } else {
+            $user->notify(new EmailVerificationNotification());
+        }
+        $user->save();
+
+        $seller = new Seller;
+        $seller->user_id = $user->id;
+
+        if ($seller->save()) {
+            $shop = new Shop;
+            $shop->user_id = $user->id;
+            $shop->slug = 'demo-shop-' . $user->id;
+            $shop->save();
+
+            flash(translate('Seller has been inserted successfully'))->success();
+            return redirect()->route('sellers.index');
+        }
+    }
+}
+```
+
+### Shop Verification
+
+Manage shop verification requests with automated notifications:
+
+**Approve Seller** (`app/Http/Controllers/SellerController.php:211`):
+
+```php
+public function approve_seller($id)
+{
+    $shop = Shop::findOrFail($id);
+    $shop->verification_status = 1;
+    $shop->save();
+    Cache::forget('verified_sellers_id');
+
+    $users = User::findMany([
+        $shop->user->id, 
+        User::where('user_type', 'admin')->first()->id
+    ]);
+    Notification::send($users, new ShopVerificationNotification($shop, 'approved'));
+
+    flash(translate('Seller has been approved successfully'))->success();
+    return redirect()->route('sellers.index');
+}
+```
+
+**Reject Seller** (`app/Http/Controllers/SellerController.php:225`):
+
+```php
+public function reject_seller($id)
+{
+    $shop = Shop::findOrFail($id);
+    $shop->verification_status = 0;
+    $shop->verification_info = null;
+    $shop->save();
+    Cache::forget('verified_sellers_id');
+
+    $users = User::findMany([
+        $shop->user->id, 
+        User::where('user_type', 'admin')->first()->id
+    ]);
+    Notification::send($users, new ShopVerificationNotification($shop, 'rejected'));
+
+    flash(translate('Seller verification request has been rejected successfully'))->success();
+    return redirect()->route('sellers.index');
+}
+```
+
+### Ban/Unban Sellers
+
+Control seller access with ban functionality (`app/Http/Controllers/SellerController.php:275`):
+
+```php
+public function ban($id)
+{
+    $shop = Shop::findOrFail($id);
+
+    if ($shop->user->banned == 1) {
+        $shop->user->banned = 0;
+        if ($shop->verification_info) {
+            $shop->verification_status = 1;
+        }
+        flash(translate('Seller has been unbanned successfully'))->success();
+    } else {
+        $shop->user->banned = 1;
+        $shop->verification_status = 0;
+        flash(translate('Seller has been banned successfully'))->success();
+    }
+    
+    $shop->save();
+    $shop->user->save();
+    return back();
+}
+```
+
+<Note>
+Banning a seller automatically sets their verification status to 0, preventing them from selling.
+</Note>
+
+### Login as Seller
+
+Admins can log in as any seller for support purposes (`app/Http/Controllers/SellerController.php:266`):
+
+```php
+public function login($id)
+{
+    $shop = Shop::findOrFail(decrypt($id));
+    $user  = $shop->user;
+    auth()->login($user, true);
+
+    return redirect()->route('seller.dashboard');
+}
+```
+
+### Seller Deletion
+
+Delete sellers with full cleanup (`app/Http/Controllers/SellerController.php:172`):
+
+```php
+public function destroy($id)
+{
+    $shop = Shop::findOrFail($id);
+    Product::where('user_id', $shop->user_id)->delete();
+    $orders = Order::where('user_id', $shop->user_id)->get();
+
+    foreach ($orders as $key => $order) {
+        OrderDetail::where('order_id', $order->id)->delete();
+    }
+    Order::where('user_id', $shop->user_id)->delete();
+
+    User::destroy($shop->user->id);
+
+    if (Shop::destroy($id)) {
+        flash(translate('Seller has been deleted successfully'))->success();
+        return redirect()->route('sellers.index');
+    }
+}
+```
+
+**Bulk Delete** (`app/Http/Controllers/SellerController.php:194`):
+
+```php
+public function bulk_seller_delete(Request $request)
+{
+    if ($request->id) {
+        foreach ($request->id as $shop_id) {
+            $this->destroy($shop_id);
+        }
+    }
+    return 1;
+}
+```
+
+## Filtering & Search
+
+Filter sellers by name, email, or verification status (`app/Http/Controllers/SellerController.php:37`):
+
+```php
+public function index(Request $request)
+{
+    $sort_search = null;
+    $approved = null;
+    $shops = Shop::whereIn('user_id', function ($query) {
+        $query->select('id')
+            ->from(with(new User)->getTable());
+    })->latest();
+
+    if ($request->has('search')) {
+        $sort_search = $request->search;
+        $user_ids = User::where('user_type', 'seller')
+            ->where(function ($user) use ($sort_search) {
+                $user->where('name', 'like', '%' . $sort_search . '%')
+                     ->orWhere('email', 'like', '%' . $sort_search . '%');
+            })->pluck('id')->toArray();
+        $shops = $shops->where(function ($shops) use ($user_ids) {
+            $shops->whereIn('user_id', $user_ids);
+        });
+    }
+    
+    if ($request->approved_status != null) {
+        $approved = $request->approved_status;
+        $shops = $shops->where('verification_status', $approved);
+    }
+    
+    $shops = $shops->paginate(15);
+    return view('backend.sellers.index', compact('shops', 'sort_search', 'approved'));
+}
+```
+
+## Permissions
+
+The seller controller uses middleware for permission checks:
+
+```php
+public function __construct()
+{
+    $this->middleware(['permission:view_all_seller'])->only('index');
+    $this->middleware(['permission:view_seller_profile'])->only('profile_modal');
+    $this->middleware(['permission:login_as_seller'])->only('login');
+    $this->middleware(['permission:pay_to_seller'])->only('payment_modal');
+    $this->middleware(['permission:edit_seller'])->only('edit');
+    $this->middleware(['permission:delete_seller'])->only('destroy');
+    $this->middleware(['permission:ban_seller'])->only('ban');
+}
+```
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Seller Packages" href="/features/seller-packages">
+    Manage seller subscription plans
+  </Card>
+  <Card title="Commissions" href="/features/commissions">
+    Track seller commission history
+  </Card>
+</CardGroup>

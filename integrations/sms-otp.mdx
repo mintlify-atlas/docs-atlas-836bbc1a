@@ -1,0 +1,554 @@
+---
+title: 'SMS and OTP Integration'
+description: 'Configure SMS gateways and OTP verification'
+icon: 'message'
+---
+
+## Overview
+
+Ecom supports SMS messaging and OTP (One-Time Password) verification through multiple SMS gateway providers. This enables:
+
+- Phone number verification during registration
+- Password reset via SMS
+- Order notifications
+- Two-factor authentication
+- Marketing messages
+
+## Supported SMS Gateways
+
+- **Twilio** (Global)
+- **Nexmo/Vonage** (Global)
+- **Fast2SMS** (India)
+- **Mimo** (Various)
+- **Mimsms** (Various)
+- **Msegat** (Middle East)
+- **Sparrow** (Nepal)
+
+## Configuration
+
+### SMS Service Classes
+
+Located in:
+
+```
+app/Services/OTP/
+├── Nexmo.php
+├── Fast2sms.php
+├── Mimo.php
+├── Mimsms.php
+├── Msegat.php
+└── Sparrow.php
+```
+
+### OTP Configuration Model
+
+```
+app/Models/OtpConfiguration.php
+app/Models/SmsTemplate.php
+```
+
+### SMS Contract Interface
+
+```
+app/Contracts/SendSms.php
+```
+
+All SMS services implement this interface:
+
+```php app/Contracts/SendSms.php
+interface SendSms {
+    public function send($to, $from, $text, $template_id);
+}
+```
+
+## Twilio Configuration
+
+### Step 1: Get Twilio Credentials
+
+<Steps>
+  <Step title="Create Twilio Account">
+    Sign up at [Twilio](https://www.twilio.com/try-twilio)
+  </Step>
+  
+  <Step title="Get Account SID and Auth Token">
+    Find in Twilio Console dashboard
+  </Step>
+  
+  <Step title="Get Phone Number">
+    Purchase a Twilio phone number
+  </Step>
+</Steps>
+
+### Step 2: Configure Environment
+
+```bash .env
+TWILIO_SID=your_account_sid
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_PHONE_NUMBER=+1234567890
+```
+
+### Step 3: Install Twilio SDK
+
+Twilio SDK is already included:
+
+```json composer.json
+"require": {
+    "twilio/sdk": "^6.44"
+}
+```
+
+## Nexmo/Vonage Configuration
+
+### Implementation
+
+```php app/Services/OTP/Nexmo.php
+namespace App\Services\OTP;
+
+use App\Contracts\SendSms;
+
+class Nexmo implements SendSms {
+    public function send($to, $from, $text, $template_id) {
+        $api_key = env("NEXMO_KEY");
+        $api_secret = env("NEXMO_SECRET");
+
+        $params = [
+            "api_key" => $api_key,
+            "api_secret" => $api_secret,
+            "from" => env("NEXMO_SENDER_ID"),
+            "text" => $text,
+            "to" => $to
+        ];
+
+        $url = "https://rest.nexmo.com/sms/json";
+        $params = json_encode($params);
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Content-Type: application/json',
+            'Content-Length: ' . strlen($params),
+            'accept:application/json'
+        ));
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        return $response;
+    }
+}
+```
+
+### Environment Configuration
+
+```bash .env
+NEXMO_KEY=your_api_key
+NEXMO_SECRET=your_api_secret
+NEXMO_SENDER_ID=YourBrand
+```
+
+### Nexmo Config File
+
+```php config/nexmo.php
+return [
+    'api_key' => env('NEXMO_KEY'),
+    'api_secret' => env('NEXMO_SECRET'),
+    'sms_from' => env('NEXMO_SENDER_ID'),
+];
+```
+
+## Fast2SMS (India)
+
+### Configuration
+
+```bash .env
+FAST2SMS_API_KEY=your_api_key
+```
+
+### Features
+
+- India-specific SMS gateway
+- DND support
+- Transactional and promotional SMS
+- Template-based messaging
+- Unicode support
+
+## OTP Verification Flow
+
+### Sending OTP
+
+<Steps>
+  <Step title="User Enters Phone Number">
+    During registration or verification
+  </Step>
+  
+  <Step title="Generate OTP Code">
+    System generates random 4-6 digit code
+    ```php
+    $otp = rand(1000, 9999); // 4-digit OTP
+    ```
+  </Step>
+  
+  <Step title="Store OTP">
+    Save OTP with expiration time in database
+    ```php
+    $user->otp_code = $otp;
+    $user->otp_expires_at = now()->addMinutes(10);
+    $user->save();
+    ```
+  </Step>
+  
+  <Step title="Send SMS">
+    Send OTP via configured gateway
+    ```php
+    $smsService = app(SendSms::class);
+    $smsService->send(
+        $phone, 
+        env('SMS_FROM'), 
+        "Your OTP is: $otp",
+        $template_id
+    );
+    ```
+  </Step>
+</Steps>
+
+### Verifying OTP
+
+<Steps>
+  <Step title="User Enters OTP">
+    User submits received OTP code
+  </Step>
+  
+  <Step title="Validate OTP">
+    ```php
+    if ($user->otp_code == $request->otp) {
+        if ($user->otp_expires_at > now()) {
+            // OTP valid
+            $user->phone_verified_at = now();
+            $user->otp_code = null;
+            $user->save();
+        } else {
+            // OTP expired
+            return 'OTP has expired';
+        }
+    } else {
+        // Invalid OTP
+        return 'Invalid OTP';
+    }
+    ```
+  </Step>
+</Steps>
+
+## SMS Templates
+
+Configure message templates in database:
+
+### Template Variables
+
+- `{customer_name}` - Customer name
+- `{order_code}` - Order code
+- `{otp_code}` - OTP code
+- `{amount}` - Order amount
+- `{delivery_status}` - Delivery status
+
+### Example Templates
+
+**OTP Verification:**
+```
+Your verification code is {otp_code}. Valid for 10 minutes. Do not share this code.
+```
+
+**Order Confirmation:**
+```
+Hi {customer_name}, your order {order_code} has been confirmed. Amount: {amount}. Thank you!
+```
+
+**Delivery Update:**
+```
+Order {order_code} status: {delivery_status}. Track your order in the app.
+```
+
+## Password Reset via SMS
+
+### Implementation
+
+```php app/Http/Controllers/Auth/ForgotPasswordController.php
+public function sendResetSms(Request $request)
+{
+    $user = User::where('phone', $request->phone)->first();
+    
+    if (!$user) {
+        return response()->json(['error' => 'Phone number not found']);
+    }
+    
+    // Generate reset code
+    $reset_code = rand(100000, 999999);
+    
+    // Store in database
+    DB::table('password_resets')->insert([
+        'phone' => $request->phone,
+        'token' => $reset_code,
+        'created_at' => now()
+    ]);
+    
+    // Send SMS
+    $smsService = app(SendSms::class);
+    $smsService->send(
+        $request->phone,
+        env('SMS_FROM'),
+        "Your password reset code is: $reset_code",
+        null
+    );
+    
+    return response()->json(['success' => true]);
+}
+```
+
+## Regional SMS Gateways
+
+### Msegat (Middle East)
+
+Popular in Saudi Arabia, UAE, Kuwait:
+
+```bash .env
+MSEGAT_API_KEY=your_api_key
+MSEGAT_USERNAME=your_username
+MSEGAT_SENDER_ID=YourBrand
+```
+
+### Sparrow (Nepal)
+
+Nepal's leading SMS gateway:
+
+```bash .env
+SPARROW_TOKEN=your_token
+SPARROW_FROM=your_sender_id
+```
+
+### Mimo / Mimsms
+
+Various regional coverage:
+
+```bash .env
+MIMO_API_KEY=your_api_key
+MIMO_SENDER_ID=YourBrand
+```
+
+## Admin Panel Configuration
+
+### Enable SMS Gateway
+
+<Steps>
+  <Step title="Access Settings">
+    Navigate to **Settings** → **OTP System**
+  </Step>
+  
+  <Step title="Select Gateway">
+    Choose SMS gateway provider
+  </Step>
+  
+  <Step title="Enter Credentials">
+    Input API keys and configuration
+  </Step>
+  
+  <Step title="Configure Templates">
+    Set up SMS message templates
+  </Step>
+  
+  <Step title="Enable Features">
+    Enable phone verification, password reset, notifications
+  </Step>
+</Steps>
+
+## Testing SMS Integration
+
+### Development Testing
+
+```php
+// Use test numbers provided by gateway
+$test_phone = '+15005550006'; // Twilio test number
+
+// Log SMS instead of sending
+if (env('APP_ENV') === 'local') {
+    \Log::info("SMS to $phone: $message");
+    return true;
+}
+```
+
+### Test Mode Configuration
+
+```bash .env
+SMS_TEST_MODE=true
+SMS_TEST_PHONE=+1234567890
+```
+
+## Rate Limiting
+
+Implement rate limiting for SMS:
+
+```php
+// Limit OTP requests
+RateLimiter::for('otp-requests', function (Request $request) {
+    return Limit::perMinute(3)->by($request->phone);
+});
+```
+
+## Cost Management
+
+<Warning>
+  **SMS Cost Optimization**
+  
+  - Implement rate limiting to prevent abuse
+  - Use shorter messages (160 chars)
+  - Monitor SMS usage and costs
+  - Set up balance alerts
+  - Validate phone numbers before sending
+  - Use free email alternatives when possible
+  - Implement cooldown periods between OTPs
+  - Block known spam/test numbers
+</Warning>
+
+## Phone Number Validation
+
+Validate phone numbers before sending SMS:
+
+```php
+use libphonenumber\PhoneNumberUtil;
+use libphonenumber\NumberParseException;
+
+public function validatePhone($phone, $countryCode = 'US')
+{
+    $phoneUtil = PhoneNumberUtil::getInstance();
+    
+    try {
+        $numberProto = $phoneUtil->parse($phone, $countryCode);
+        return $phoneUtil->isValidNumber($numberProto);
+    } catch (NumberParseException $e) {
+        return false;
+    }
+}
+```
+
+## Multi-Language SMS
+
+Support multiple languages in SMS:
+
+```php
+$message = translate('Your OTP is: {otp}', $user->language);
+$message = str_replace('{otp}', $otp, $message);
+```
+
+Ensure your SMS gateway supports Unicode for non-English characters.
+
+## Delivery Reports
+
+Track SMS delivery status:
+
+```php
+// Store SMS sending attempt
+DB::table('sms_logs')->insert([
+    'phone' => $phone,
+    'message' => $message,
+    'gateway' => 'twilio',
+    'status' => 'sent',
+    'sent_at' => now()
+]);
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="SMS Not Received">
+    **Check**:
+    - Phone number is valid and formatted correctly
+    - SMS gateway credentials are correct
+    - Account has sufficient balance
+    - Number is not in DND (Do Not Disturb) list
+    - Check spam/block lists
+    - Verify sender ID is approved
+  </Accordion>
+  
+  <Accordion title="Invalid Phone Number">
+    **Solution**:
+    - Use international format (+1234567890)
+    - Include country code
+    - Remove spaces and special characters
+    - Validate before sending
+  </Accordion>
+  
+  <Accordion title="High SMS Costs">
+    **Optimize**:
+    - Use shorter messages
+    - Implement rate limiting
+    - Cache OTPs to prevent resends
+    - Set cooldown periods
+    - Monitor for abuse
+  </Accordion>
+  
+  <Accordion title="Gateway API Errors">
+    **Debug**:
+    - Check API credentials
+    - Verify endpoint URLs
+    - Review error codes in logs
+    - Test with gateway's test numbers
+    - Check account status and balance
+  </Accordion>
+</AccordionGroup>
+
+## Security Best Practices
+
+<Warning>
+  **SMS Security Guidelines**
+  
+  - Use HTTPS for all API requests
+  - Never log or display full phone numbers
+  - Implement rate limiting (3-5 attempts per hour)
+  - Set OTP expiration (5-10 minutes)
+  - Use sufficient OTP length (4-6 digits)
+  - Invalidate OTP after successful use
+  - Monitor for suspicious patterns
+  - Implement CAPTCHA before OTP
+  - Log all OTP attempts
+  - Alert on multiple failed attempts
+</Warning>
+
+## Compliance
+
+### GDPR Compliance
+
+- Obtain consent before sending marketing SMS
+- Provide opt-out mechanism
+- Store phone numbers securely
+- Allow users to delete their data
+
+### TCPA Compliance (USA)
+
+- Get explicit consent for SMS
+- Include opt-out instructions
+- Maintain do-not-contact lists
+- Send only during reasonable hours
+
+## Alternative: Email OTP
+
+For cost savings, use email OTP as fallback:
+
+```php
+if (env('SMS_ENABLED') == false || env('APP_ENV') == 'local') {
+    // Send OTP via email instead
+    Mail::to($user->email)->send(new OtpMail($otp));
+}
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Social Login" icon="users" href="/integrations/social-login">
+    Configure social authentication
+  </Card>
+  <Card title="Email Configuration" icon="envelope" href="/setup/email-configuration">
+    Setup email notifications
+  </Card>
+</CardGroup>

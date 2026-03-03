@@ -1,0 +1,309 @@
+---
+title: 'Chat'
+description: 'Customer-seller messaging system'
+---
+
+<Note>
+All chat endpoints require authentication with `auth:sanctum`.
+</Note>
+
+## Overview
+
+The chat system allows customers to communicate with sellers about products. Each conversation is linked to a product and contains multiple messages.
+
+## Get Conversations
+
+<api method="GET" endpoint="/api/v2/chat/conversations" auth="sanctum">
+  Get list of user's conversations
+</api>
+
+### Query Parameters
+
+<ParamField query="page" type="integer" default="1">
+  Page number
+</ParamField>
+
+### Response
+
+Returns paginated list of conversations where the authenticated user is the sender, ordered by most recent first.
+
+### Example
+
+```bash
+curl -X GET https://your-domain.com/api/v2/chat/conversations \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+## Get Messages
+
+<api method="GET" endpoint="/api/v2/chat/messages/{id}" auth="sanctum">
+  Get messages in a conversation
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Conversation ID
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="page" type="integer" default="1">
+  Page number
+</ParamField>
+
+### Response
+
+Returns paginated list of messages in the conversation, ordered by most recent first.
+
+### Example
+
+```bash
+curl -X GET https://your-domain.com/api/v2/chat/messages/123 \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+## Create Conversation
+
+<api method="POST" endpoint="/api/v2/chat/create-conversation" auth="sanctum">
+  Create a new conversation with a seller about a product
+</api>
+
+### Request
+
+<ParamField body="product_id" type="integer" required>
+  Product ID to inquire about
+</ParamField>
+
+<ParamField body="title" type="string" required>
+  Conversation title/subject
+</ParamField>
+
+<ParamField body="message" type="string" required>
+  Initial message content
+</ParamField>
+
+### Response
+
+<ResponseField name="result" type="boolean">
+  Success status
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Success message
+</ResponseField>
+
+<ResponseField name="conversation_id" type="integer">
+  Created conversation ID
+</ResponseField>
+
+<ResponseField name="shop_name" type="string">
+  Seller's shop name or "In House Product"
+</ResponseField>
+
+<ResponseField name="shop_logo" type="string">
+  Seller's shop logo URL
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  Conversation title
+</ResponseField>
+
+### Example
+
+```bash
+curl -X POST https://your-domain.com/api/v2/chat/create-conversation \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "product_id": 123,
+    "title": "Question about product size",
+    "message": "Do you have this in size XL?"
+  }'
+```
+
+<Info>
+When a conversation is created:
+- An initial message is automatically added
+- Email notification is sent to the seller
+- Conversation is linked to the product
+</Info>
+
+## Send Message
+
+<api method="POST" endpoint="/api/v2/chat/insert-message" auth="sanctum">
+  Send a message in an existing conversation
+</api>
+
+### Request
+
+<ParamField body="conversation_id" type="integer" required>
+  Conversation ID
+</ParamField>
+
+<ParamField body="message" type="string" required>
+  Message content
+</ParamField>
+
+### Response
+
+Returns the created message object in a collection format.
+
+### Example
+
+```bash
+curl -X POST https://your-domain.com/api/v2/chat/insert-message \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "conversation_id": 123,
+    "message": "Thank you for your response!"
+  }'
+```
+
+## Get New Messages
+
+<api method="GET" endpoint="/api/v2/chat/get-new-messages/{conversation_id}/{last_message_id}" auth="sanctum">
+  Get new messages in a conversation since a specific message ID
+</api>
+
+### Path Parameters
+
+<ParamField path="conversation_id" type="integer" required>
+  Conversation ID
+</ParamField>
+
+<ParamField path="last_message_id" type="integer" required>
+  Last message ID the client has
+</ParamField>
+
+### Response
+
+Returns messages with ID greater than `last_message_id`, ordered by most recent first.
+
+### Example
+
+```bash
+curl -X GET https://your-domain.com/api/v2/chat/get-new-messages/123/456 \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+<Tip>
+Use this endpoint for polling new messages in real-time chat interfaces.
+</Tip>
+
+## Conversation Response Structure
+
+<ResponseField name="id" type="integer">
+  Conversation ID
+</ResponseField>
+
+<ResponseField name="sender_id" type="integer">
+  Customer user ID
+</ResponseField>
+
+<ResponseField name="receiver_id" type="integer">
+  Seller user ID
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  Conversation subject
+</ResponseField>
+
+<ResponseField name="sender_viewed" type="string">
+  Whether sender has viewed (0 or 1)
+</ResponseField>
+
+<ResponseField name="receiver_viewed" type="string">
+  Whether receiver has viewed (0 or 1)
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  Creation timestamp
+</ResponseField>
+
+## Message Response Structure
+
+<ResponseField name="id" type="integer">
+  Message ID
+</ResponseField>
+
+<ResponseField name="conversation_id" type="integer">
+  Parent conversation ID
+</ResponseField>
+
+<ResponseField name="user_id" type="integer">
+  Sender user ID
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Message content
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  Message timestamp
+</ResponseField>
+
+## Chat Flow
+
+### 1. Starting a Conversation
+
+1. Customer views a product
+2. Customer clicks "Contact Seller"
+3. App calls `/api/v2/chat/create-conversation` with product_id
+4. Conversation is created and seller receives email notification
+
+### 2. Sending Messages
+
+1. User views conversation messages
+2. User types and sends message
+3. App calls `/api/v2/chat/insert-message`
+4. Message is added to conversation
+5. View status is updated
+
+### 3. Polling for New Messages
+
+1. App stores the latest message ID
+2. Periodically calls `/api/v2/chat/get-new-messages/{conversation_id}/{last_message_id}`
+3. Displays new messages to user
+4. Updates last message ID
+
+## Viewing Status
+
+The conversation tracks viewing status:
+
+- **sender_viewed**: Set to "1" when sender sends a new message
+- **receiver_viewed**: Set to "1" when receiver sends a new message
+
+This allows showing unread message indicators in the UI.
+
+## Email Notifications
+
+When a new conversation is created, an email is sent to the seller containing:
+
+- Sender's name
+- Initial message content
+- Link to view conversation (for admin or seller dashboard)
+
+<Warning>
+Email sending failures are silently caught to prevent conversation creation from failing.
+</Warning>
+
+## Best Practices
+
+<Tip>
+1. **Polling**: Poll for new messages every 5-10 seconds for active conversations
+2. **Caching**: Cache conversation list locally and refresh periodically
+3. **Pagination**: Load older messages on-demand when user scrolls up
+4. **Real-time**: Consider implementing WebSocket for true real-time messaging
+5. **Notifications**: Send push notifications when new messages arrive
+</Tip>
+
+## Limitations
+
+<Note>
+- Messages are text-only (no attachments in current version)
+- One conversation per product per customer-seller pair
+- Conversations cannot be deleted by users
+- No group conversations (only 1-to-1)
+</Note>

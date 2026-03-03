@@ -1,0 +1,423 @@
+---
+title: Business Settings
+description: Configure platform-wide settings, integrations, and business rules
+---
+
+## Overview
+
+Business settings control core platform functionality including general configuration, payment methods, shipping options, third-party integrations, and seller commission structures.
+
+## General Settings
+
+### Accessing General Settings
+
+**Route**: `/admin/general-setting`
+
+<Steps>
+  <Step title="Navigate to Settings">
+    Go to Settings > General Settings from the admin menu
+    
+    **Screenshot Description**: Settings menu with General Settings option highlighted
+  </Step>
+  
+  <Step title="Review Current Settings">
+    View all general configuration options
+  </Step>
+  
+  <Step title="Update Settings">
+    Modify settings and save changes
+    
+    **Route**: POST `/admin/business-settings/update`
+  </Step>
+</Steps>
+
+### Key General Settings
+
+- **Site Name**: Platform display name (updates `APP_NAME` in environment)
+- **Timezone**: Platform timezone (updates `APP_TIMEZONE`)
+- **Logo and Favicon**: Branding assets
+- **Contact Information**: Business contact details
+- **Meta Information**: SEO settings
+
+<Note>
+Changing the site name or timezone updates your `.env` file. Cache is automatically cleared after these changes.
+</Note>
+
+## Feature Activation
+
+### Managing Platform Features
+
+**Route**: `/admin/activation`
+
+<Steps>
+  <Step title="Access Feature Activation">
+    Navigate to Settings > Feature Activation
+  </Step>
+  
+  <Step title="Toggle Features">
+    Enable or disable platform features:
+    - Email verification
+    - Wallet system
+    - Seller registration
+    - Product approval workflow
+    - Affiliate system
+    - Club points
+    - And more...
+    
+    **Route**: POST `/admin/business-settings/update/activation`
+  </Step>
+  
+  <Step title="Configure Feature Settings">
+    Each feature may have additional configuration options
+  </Step>
+</Steps>
+
+### Special Activation Settings
+
+#### Maintenance Mode
+
+Temporarily disable public access to the platform.
+
+- **Enable**: Puts the site into maintenance mode
+- **Disable**: Returns site to normal operation
+
+<Tip>
+Use maintenance mode when:
+- Performing major updates
+- Migrating data
+- Fixing critical bugs
+
+Administrators can still access the admin panel during maintenance.
+</Tip>
+
+#### HTTPS Enforcement
+
+Force all connections to use HTTPS.
+
+- **Enable**: Sets `FORCE_HTTPS=On` and updates APP_URL to https://
+- **Disable**: Sets `FORCE_HTTPS=Off` and updates APP_URL to http://
+
+#### Filesystem Driver
+
+Configure where files are stored.
+
+**Options**: Local, S3, etc.
+
+**Updates**: `FILESYSTEM_DRIVER` environment variable
+
+## Payment Methods
+
+### Configuring Payment Gateways
+
+**Route**: `/admin/payment-method`
+
+<Steps>
+  <Step title="Access Payment Methods">
+    Navigate to Settings > Payment Methods
+    
+    **Screenshot Description**: Payment methods page showing available gateways with configuration status
+  </Step>
+  
+  <Step title="Select Payment Gateway">
+    Choose a payment method to configure:
+    - PayPal
+    - Stripe
+    - Razorpay
+    - SSLCommerz
+    - Paystack
+    - And others...
+  </Step>
+  
+  <Step title="Enter API Credentials">
+    Input required credentials for the payment gateway
+  </Step>
+  
+  <Step title="Configure Sandbox Mode">
+    Toggle sandbox/test mode for testing purposes
+  </Step>
+  
+  <Step title="Save Configuration">
+    Update payment method settings
+    
+    **Route**: POST `/admin/payment_method_update`
+  </Step>
+</Steps>
+
+<Note>
+After updating payment methods, the cache is automatically cleared and credentials are stored in the `.env` file.
+</Note>
+
+## Third-Party Integrations
+
+### Google Analytics
+
+**Route**: `/admin/google-analytics`
+
+<Steps>
+  <Step title="Enable Google Analytics">
+    Toggle the analytics activation switch
+  </Step>
+  
+  <Step title="Enter Tracking ID">
+    Input your Google Analytics tracking ID
+  </Step>
+  
+  <Step title="Save Settings">
+    **Route**: POST `/admin/google_analytics`
+  </Step>
+</Steps>
+
+### Google reCAPTCHA
+
+**Route**: `/admin/google-recaptcha`
+
+Protect forms from spam and bots.
+
+<Steps>
+  <Step title="Get reCAPTCHA Keys">
+    Obtain site key and secret key from Google
+  </Step>
+  
+  <Step title="Configure reCAPTCHA">
+    Enter keys in the configuration form
+  </Step>
+  
+  <Step title="Enable reCAPTCHA">
+    Toggle activation and save
+    
+    **Route**: POST `/admin/google_recaptcha`
+  </Step>
+</Steps>
+
+### Google Maps
+
+**Route**: `/admin/google-map`
+
+Enable location-based features.
+
+**Update Route**: POST `/admin/google-map`
+
+### Google Firebase
+
+**Route**: `/admin/google-firebase`
+
+Enable push notifications.
+
+**Update Route**: POST `/admin/google-firebase`
+
+### Facebook Integrations
+
+#### Facebook Chat
+
+**Route**: `/admin/facebook-chat`
+
+Integrate Facebook Messenger for customer support.
+
+**Update Route**: POST `/admin/facebook_chat`
+
+#### Facebook Comment
+
+**Route**: `/admin/facebook-comment`
+
+Enable Facebook comments on product pages.
+
+**Update Route**: POST `/admin/facebook-comment`
+
+#### Facebook Pixel
+
+Track conversions and build audiences.
+
+**Update Route**: POST `/admin/facebook_pixel`
+
+## Email Configuration
+
+### SMTP Settings
+
+**Route**: `/admin/smtp-settings`
+
+<Steps>
+  <Step title="Access SMTP Settings">
+    Navigate to Settings > SMTP Settings
+  </Step>
+  
+  <Step title="Configure Mail Server">
+    Enter SMTP details:
+    - Host
+    - Port
+    - Username
+    - Password
+    - Encryption (TLS/SSL)
+  </Step>
+  
+  <Step title="Test Email">
+    Send a test email to verify configuration
+    
+    **Route**: POST `/admin/newsletter/test/smtp`
+  </Step>
+  
+  <Step title="Save Settings">
+    **Route**: POST `/admin/env_key_update`
+  </Step>
+</Steps>
+
+<Tip>
+Common SMTP providers:
+- Gmail: smtp.gmail.com (port 587)
+- SendGrid: smtp.sendgrid.net (port 587)
+- Mailgun: smtp.mailgun.org (port 587)
+- Amazon SES: email-smtp.region.amazonaws.com (port 587)
+</Tip>
+
+## Social Login
+
+**Route**: `/admin/social-login`
+
+Enable login via social media platforms.
+
+<Steps>
+  <Step title="Select Social Platform">
+    Choose platform (Facebook, Google, Twitter, etc.)
+  </Step>
+  
+  <Step title="Enter App Credentials">
+    Input App ID and App Secret from the social platform
+  </Step>
+  
+  <Step title="Enable Social Login">
+    Toggle activation for each platform
+  </Step>
+</Steps>
+
+## Seller Configuration
+
+### Seller Commission
+
+**Route**: `/admin/vendor_commission`
+
+<Steps>
+  <Step title="Access Commission Settings">
+    Navigate to Sellers > Commission Configuration
+    
+    **Screenshot Description**: Commission configuration form with percentage input fields
+  </Step>
+  
+  <Step title="Set Commission Rate">
+    Enter commission percentage for sellers
+  </Step>
+  
+  <Step title="Configure Commission Type">
+    Choose commission calculation method:
+    - Percentage of sale price
+    - Fixed amount per product
+    - Category-wise commission
+  </Step>
+  
+  <Step title="Save Commission Settings">
+    **Route**: POST `/admin/vendor_commission_update`
+  </Step>
+</Steps>
+
+<Note>
+Commission is automatically calculated when orders are marked as "Paid" and the `commission_calculated` flag is set.
+</Note>
+
+### Seller Verification Form
+
+**Route**: `/admin/verification/form`
+
+Customize the seller verification form.
+
+<Steps>
+  <Step title="Access Form Builder">
+    Navigate to Sellers > Verification Form
+  </Step>
+  
+  <Step title="Add Form Fields">
+    Create custom fields:
+    - Text input
+    - Select dropdown
+    - Multi-select
+    - Radio buttons
+    - File upload
+  </Step>
+  
+  <Step title="Configure Field Options">
+    For select/radio fields, add available options
+  </Step>
+  
+  <Step title="Save Form Configuration">
+    **Route**: POST `/admin/verification/form`
+  </Step>
+</Steps>
+
+## Shipping Configuration
+
+**Route**: `/admin/shipping_configuration`
+
+<Steps>
+  <Step title="Access Shipping Settings">
+    Navigate to Settings > Shipping Configuration
+  </Step>
+  
+  <Step title="Select Shipping Method">
+    Choose from available shipping methods:
+    - Flat rate
+    - Carrier-based
+    - Seller-wise
+    - Product-based
+  </Step>
+  
+  <Step title="Update Configuration">
+    **Route**: POST `/admin/shipping_configuration/update`
+  </Step>
+</Steps>
+
+## Order Configuration
+
+**Route**: `/admin/order-configuration`
+
+Configure order processing rules:
+
+- Minimum order amount
+- Guest checkout settings
+- Order number format
+- Invoice settings
+
+## File System Configuration
+
+**Route**: `/admin/file_system`
+
+Configure where uploaded files are stored:
+
+- **Local Storage**: Store files on server
+- **Amazon S3**: Cloud storage
+- **Other cloud providers**: As configured
+
+## Cache Management
+
+After updating any business settings, the system automatically:
+
+1. Clears the application cache
+2. Refreshes configuration values
+3. Updates environment variables (when applicable)
+
+<Tip>
+If changes don't appear immediately:
+- Manually clear browser cache
+- Use the "Clear Cache" function in the dashboard
+- Wait a few minutes for CDN propagation (if using CDN)
+</Tip>
+
+## Best Practices
+
+1. **Test Payment Gateways**: Always test in sandbox mode before going live
+2. **Backup Before Changes**: Backup your `.env` file before modifying settings
+3. **Document Changes**: Keep a record of configuration changes
+4. **Secure Credentials**: Never share API keys or credentials
+5. **Regular Reviews**: Audit settings quarterly
+
+## Related Sections
+
+- [Admin Dashboard](/admin/dashboard)
+- [Product Management](/admin/product-management)
+- [Order Management](/admin/order-management)

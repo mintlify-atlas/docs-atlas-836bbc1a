@@ -1,0 +1,337 @@
+---
+title: Payments and Withdrawals
+description: Track earnings and withdraw funds from your seller account
+---
+
+## Overview
+
+Understanding your payment flow is essential for managing your seller business. This guide covers viewing payment history, checking your balance, and requesting withdrawals.
+
+## Payment System Basics
+
+### How Payments Work
+
+1. **Customer Places Order**: Customer completes purchase
+2. **Payment Processing**: Payment is processed through chosen gateway
+3. **Commission Calculation**: Platform commission is calculated when order is marked as "Paid"
+4. **Balance Update**: Your share is added to your seller balance
+5. **Withdrawal**: You can request withdrawal of available balance
+
+### Commission Structure
+
+The platform deducts a commission from each sale:
+
+- Commission rate is set by the admin
+- May vary by product category
+- Calculated only when orders are marked as "Paid"
+- View commission details in payment history
+
+<Note>
+Commission calculation is triggered when:
+- Order payment status is set to "Paid"
+- Commission hasn't been calculated yet (`commission_calculated = 0`)
+- All items in the order are marked as paid
+</Note>
+
+## Viewing Payment History
+
+**Route**: `/seller/payments`
+
+<Steps>
+  <Step title="Access Payment History">
+    From your seller dashboard, navigate to Payments > Payment History
+    
+    **Screenshot Description**: Payment history page showing list of received payments with dates and amounts
+  </Step>
+  
+  <Step title="Review Payment Records">
+    View all payments received from the platform, paginated in sets of 9
+  </Step>
+  
+  <Step title="Check Payment Details">
+    Each payment record shows:
+    - Payment date
+    - Amount received
+    - Payment method
+    - Related order information
+    - Commission deducted
+    - Transaction ID (if applicable)
+  </Step>
+</Steps>
+
+## Understanding Your Balance
+
+Your seller balance consists of:
+
+- **Total Earnings**: All payments received
+- **Pending Withdrawals**: Requested but not yet processed
+- **Available Balance**: Amount you can withdraw
+
+### Checking Current Balance
+
+View your balance in:
+- Seller dashboard header
+- Payment history page
+- Withdrawal request page
+
+## Commission History
+
+**Route**: `/seller/commission-history`
+
+<Steps>
+  <Step title="Navigate to Commission History">
+    Go to Payments > Commission History
+  </Step>
+  
+  <Step title="View Commission Details">
+    See detailed breakdown of:
+    - Order date and code
+    - Order total
+    - Commission percentage/amount
+    - Your earnings after commission
+    - Payment status
+  </Step>
+  
+  <Step title="Filter by Date">
+    Use date filters to view commissions for specific periods
+  </Step>
+</Steps>
+
+<Tip>
+Regularly review your commission history to:
+- Verify commission calculations
+- Track earnings trends
+- Identify best-selling products
+- Plan inventory and pricing strategies
+</Tip>
+
+## Requesting Withdrawals
+
+### Withdrawal Requirements
+
+Before requesting a withdrawal:
+
+- Ensure you have sufficient available balance
+- Check minimum withdrawal amount (set by admin)
+- Verify your payment method is configured
+- Confirm your shop information is complete
+
+### Creating a Withdrawal Request
+
+**Route**: `/seller/money-withdraw-requests`
+
+<Steps>
+  <Step title="Navigate to Withdraw Requests">
+    Go to Payments > Withdraw Requests
+    
+    **Screenshot Description**: Withdraw request page showing current balance and withdrawal form
+  </Step>
+  
+  <Step title="Click Request Withdrawal">
+    Click "Request Withdrawal" or "New Withdrawal" button
+  </Step>
+  
+  <Step title="Enter Withdrawal Amount">
+    Specify the amount you want to withdraw:
+    - Must not exceed available balance
+    - Must meet minimum withdrawal amount
+  </Step>
+  
+  <Step title="Add Message (Optional)">
+    Include any notes or payment instructions for the admin
+  </Step>
+  
+  <Step title="Submit Request">
+    Click "Submit Withdrawal Request"
+    
+    **Route**: POST `/seller/money-withdraw-request/store`
+  </Step>
+  
+  <Step title="Receive Confirmation">
+    - Success message: "Request has been sent successfully"
+    - You and admin receive notifications
+    - Request status: Pending
+  </Step>
+</Steps>
+
+<Note>
+When you submit a withdrawal request:
+- Request is created with status "Pending" (`status = 0`)
+- Admin is notified via PayoutNotification
+- Request is marked as unviewed (`viewed = 0`)
+</Note>
+
+## Tracking Withdrawal Requests
+
+<Steps>
+  <Step title="View All Requests">
+    Access your withdrawal request history
+  </Step>
+  
+  <Step title="Check Request Status">
+    Each request shows:
+    - Request date
+    - Amount requested
+    - Status (Pending, Approved, Rejected)
+    - Message/notes
+    - Payment date (if approved)
+  </Step>
+  
+  <Step title="Monitor Pending Requests">
+    Track which requests are awaiting admin action
+  </Step>
+</Steps>
+
+### Withdrawal Request Statuses
+
+- **Pending (0)**: Request submitted, awaiting admin review
+- **Approved (1)**: Request approved and payment processed
+- **Rejected (2)**: Request declined by admin
+
+## Payment Methods
+
+Configure your preferred payment method for withdrawals:
+
+### Supported Methods
+
+Typical withdrawal methods include:
+- Bank transfer
+- PayPal
+- Stripe
+- Other platform-supported payment gateways
+
+### Setting Payment Preferences
+
+<Steps>
+  <Step title="Access Shop Settings">
+    Navigate to Shop > Settings
+  </Step>
+  
+  <Step title="Enter Payment Information">
+    Add:
+    - Bank account details
+    - PayPal email
+    - Other payment account information
+  </Step>
+  
+  <Step title="Save Payment Details">
+    Ensure all information is accurate before saving
+  </Step>
+</Steps>
+
+<Tip>
+Keep your payment information up to date to avoid delays in receiving withdrawals.
+</Tip>
+
+## Withdrawal Processing Timeline
+
+Typical withdrawal timeline:
+
+1. **Submission**: Request submitted by seller
+2. **Admin Review**: 1-2 business days
+3. **Approval**: Admin approves or rejects request
+4. **Payment Processing**: 3-7 business days after approval
+5. **Funds Received**: Depends on payment method
+
+<Note>
+Processing times may vary based on:
+- Payment method chosen
+- Bank processing times
+- Platform policies
+- Weekends and holidays
+</Note>
+
+## Best Practices
+
+### Regular Withdrawals
+
+1. **Schedule Regular Withdrawals**: Weekly or monthly
+2. **Don't Wait for Large Amounts**: Withdraw regularly for better cash flow
+3. **Track Pending Requests**: Don't submit duplicate requests
+
+### Financial Management
+
+1. **Keep Records**: Download payment history regularly
+2. **Monitor Commissions**: Ensure calculations are correct
+3. **Plan for Taxes**: Set aside funds for tax obligations
+4. **Track Expenses**: Account for product costs, shipping, etc.
+
+### Communication
+
+1. **Clear Messages**: Include relevant details in withdrawal requests
+2. **Respond Promptly**: Reply to admin queries quickly
+3. **Update Information**: Keep payment details current
+
+## Troubleshooting
+
+### Common Issues
+
+**Q: My withdrawal request was rejected. Why?**  
+A: Check the admin's message for the reason. Common causes:
+- Insufficient balance
+- Incomplete payment information
+- Policy violations
+- Minimum amount not met
+
+**Q: I don't see recent payments in my history**  
+A: Payments appear when orders are marked as "Paid" and commission is calculated. Check if orders are still "Unpaid."
+
+**Q: The commission amount seems incorrect**  
+A: Review commission settings with the admin. Commission rates may vary by category.
+
+**Q: How long until I receive my withdrawal?**  
+A: Typically 3-7 business days after admin approval, but varies by payment method.
+
+**Q: Can I cancel a withdrawal request?**  
+A: Contact admin support to cancel pending requests.
+
+### Getting Help
+
+If you have payment issues:
+
+<Steps>
+  <Step title="Check Documentation">
+    Review this guide and platform policies
+  </Step>
+  
+  <Step title="Contact Admin Support">
+    Create a support ticket with:
+    - Specific issue description
+    - Order or payment reference numbers
+    - Screenshots if applicable
+    
+    **Route**: `/seller/support_ticket`
+  </Step>
+  
+  <Step title="Provide Details">
+    Include all relevant information for faster resolution
+  </Step>
+</Steps>
+
+## Tax Considerations
+
+<Note>
+As a seller, you may be responsible for:
+- Income tax on earnings
+- Sales tax collection (depending on jurisdiction)
+- VAT (in applicable regions)
+- Business registration requirements
+
+Consult with a tax professional regarding your obligations.
+</Note>
+
+### Record Keeping
+
+Maintain records of:
+- All payment receipts
+- Withdrawal confirmations
+- Commission statements
+- Order invoices
+- Expense receipts
+
+## Related Sections
+
+- [Managing Orders](/seller/managing-orders)
+- [Adding Products](/seller/adding-products)
+- [Shop Setup](/seller/shop-setup)
+- [Getting Started](/seller/getting-started)

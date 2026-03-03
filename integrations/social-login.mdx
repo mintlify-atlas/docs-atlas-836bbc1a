@@ -1,0 +1,592 @@
+---
+title: 'Social Login'
+description: 'Configure social authentication with Google, Facebook, Twitter, and Apple'
+icon: 'users'
+---
+
+## Overview
+
+Social login enables customers to register and sign in using their existing social media accounts. This reduces friction in the registration process and improves user experience.
+
+## Supported Providers
+
+- Google
+- Facebook  
+- Twitter
+- Apple (Sign in with Apple)
+
+## Benefits
+
+- **Faster Registration**: One-click account creation
+- **Reduced Friction**: No password to remember
+- **Higher Conversion**: Simplified checkout process
+- **Verified Emails**: Most social accounts have verified emails
+- **Better User Data**: Access to social profile information
+
+## Configuration
+
+### Controller Location
+
+```
+app/Http/Controllers/Auth/LoginController.php
+```
+
+### Dependencies
+
+Social login uses Laravel Socialite:
+
+```json composer.json
+"require": {
+    "laravel/socialite": "^5.6",
+    "genealabs/laravel-socialiter": "*",
+    "genealabs/laravel-sign-in-with-apple": "*"
+}
+```
+
+## Google Login
+
+### Step 1: Create Google OAuth App
+
+<Steps>
+  <Step title="Access Google Cloud Console">
+    Go to [Google Cloud Console](https://console.cloud.google.com/)
+  </Step>
+  
+  <Step title="Create Project">
+    Create a new project or select existing one
+  </Step>
+  
+  <Step title="Enable Google+ API">
+    Navigate to **APIs & Services** → **Library** and enable Google+ API
+  </Step>
+  
+  <Step title="Create OAuth Credentials">
+    Go to **Credentials** → **Create Credentials** → **OAuth 2.0 Client ID**
+  </Step>
+  
+  <Step title="Configure OAuth Consent Screen">
+    Set application name, logo, and authorized domains
+  </Step>
+  
+  <Step title="Add Redirect URI">
+    ```
+    https://yourdomain.com/social-login/google/callback
+    ```
+  </Step>
+  
+  <Step title="Copy Credentials">
+    Copy Client ID and Client Secret
+  </Step>
+</Steps>
+
+### Step 2: Configure Environment
+
+Add to `.env`:
+
+```bash .env
+GOOGLE_CLIENT_ID=your_client_id
+GOOGLE_CLIENT_SECRET=your_client_secret
+```
+
+### Step 3: Configure Services
+
+Config is already set in `config/services.php`:
+
+```php config/services.php
+'google' => [
+    'client_id'     => env('GOOGLE_CLIENT_ID'),
+    'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+    'redirect'      => env('APP_URL').'/social-login/google/callback',
+],
+```
+
+## Facebook Login
+
+### Step 1: Create Facebook App
+
+<Steps>
+  <Step title="Access Facebook Developers">
+    Go to [Facebook Developers](https://developers.facebook.com/)
+  </Step>
+  
+  <Step title="Create App">
+    Click **My Apps** → **Create App**
+  </Step>
+  
+  <Step title="Choose App Type">
+    Select "Consumer" app type
+  </Step>
+  
+  <Step title="Add Facebook Login Product">
+    In dashboard, add **Facebook Login** product
+  </Step>
+  
+  <Step title="Configure OAuth Redirect">
+    Under **Facebook Login** → **Settings**, add:
+    ```
+    https://yourdomain.com/social-login/facebook/callback
+    ```
+  </Step>
+  
+  <Step title="Get App Credentials">
+    Copy App ID and App Secret from **Settings** → **Basic**
+  </Step>
+</Steps>
+
+### Step 2: Configure Environment
+
+```bash .env
+FACEBOOK_CLIENT_ID=your_app_id
+FACEBOOK_CLIENT_SECRET=your_app_secret
+```
+
+### Step 3: Services Configuration
+
+```php config/services.php
+'facebook' => [
+    'client_id'     => env('FACEBOOK_CLIENT_ID'),
+    'client_secret' => env('FACEBOOK_CLIENT_SECRET'),
+    'redirect'      => env('APP_URL').'/social-login/facebook/callback',
+],
+```
+
+## Twitter Login
+
+### Step 1: Create Twitter App
+
+<Steps>
+  <Step title="Access Twitter Developer Portal">
+    Go to [Twitter Developer Portal](https://developer.twitter.com/)
+  </Step>
+  
+  <Step title="Create Project and App">
+    Create a new project and app
+  </Step>
+  
+  <Step title="Get API Keys">
+    Navigate to **Keys and Tokens** tab
+  </Step>
+  
+  <Step title="Configure Callback URL">
+    In app settings, add:
+    ```
+    https://yourdomain.com/social-login/twitter/callback
+    ```
+  </Step>
+  
+  <Step title="Copy Credentials">
+    Copy API Key and API Secret Key
+  </Step>
+</Steps>
+
+### Step 2: Configure Environment
+
+```bash .env
+TWITTER_CLIENT_ID=your_api_key
+TWITTER_CLIENT_SECRET=your_api_secret
+```
+
+### Step 3: Services Configuration
+
+```php config/services.php
+'twitter' => [
+    'client_id'     => env('TWITTER_CLIENT_ID'),
+    'client_secret' => env('TWITTER_CLIENT_SECRET'),
+    'redirect'      => env('APP_URL').'/social-login/twitter/callback',
+],
+```
+
+## Apple Sign In
+
+### Step 1: Configure Apple Developer Account
+
+<Steps>
+  <Step title="Access Apple Developer">
+    Go to [Apple Developer Portal](https://developer.apple.com/)
+  </Step>
+  
+  <Step title="Create App ID">
+    Register your app and enable "Sign in with Apple"
+  </Step>
+  
+  <Step title="Create Service ID">
+    Create a Services ID for web authentication
+  </Step>
+  
+  <Step title="Configure Return URLs">
+    Add return URL:
+    ```
+    https://yourdomain.com/social-login/apple/callback
+    ```
+  </Step>
+  
+  <Step title="Create Private Key">
+    Generate and download private key for Sign in with Apple
+  </Step>
+</Steps>
+
+### Step 2: Configure Environment
+
+Apple Sign In requires additional configuration in the package settings.
+
+## Implementation Details
+
+### Redirect to Provider
+
+```php app/Http/Controllers/Auth/LoginController.php
+public function redirectToProvider($provider)
+{
+    if (request()->get('query') == 'mobile_app') {
+        request()->session()->put('login_from', 'mobile_app');
+    }
+    
+    if ($provider == 'apple') {
+        return Socialite::driver("sign-in-with-apple")
+            ->scopes(["name", "email"])
+            ->redirect();
+    }
+    
+    return Socialite::driver($provider)->redirect();
+}
+```
+
+### Handle Provider Callback
+
+```php app/Http/Controllers/Auth/LoginController.php
+public function handleProviderCallback(Request $request, $provider)
+{
+    if (session('login_from') == 'mobile_app') {
+        return $this->mobileHandleProviderCallback($request, $provider);
+    }
+    
+    try {
+        if ($provider == 'twitter') {
+            $user = Socialite::driver('twitter')->user();
+        } else {
+            $user = Socialite::driver($provider)->stateless()->user();
+        }
+    } catch (\Exception $e) {
+        flash(translate("Something Went wrong. Please try again."))->error();
+        return redirect()->route('user.login');
+    }
+
+    // Check if provider_id exist
+    $existingUserByProviderId = User::where('provider_id', $user->id)->first();
+
+    if ($existingUserByProviderId) {
+        $existingUserByProviderId->access_token = $user->token;
+        $existingUserByProviderId->save();
+        auth()->login($existingUserByProviderId, true);
+    } else {
+        // Check if email exist
+        $existingUser = User::where('email', '!=', null)->where('email', $user->email)->first();
+
+        if ($existingUser) {
+            // Update provider_id
+            $existingUser->provider_id = $user->id;
+            $existingUser->provider = $provider;
+            $existingUser->access_token = $user->token;
+            $existingUser->save();
+            auth()->login($existingUser, true);
+        } else {
+            // Create new user
+            $newUser = new User;
+            $newUser->name = $user->name;
+            $newUser->email = $user->email;
+            $newUser->email_verified_at = date('Y-m-d Hms');
+            $newUser->provider_id = $user->id;
+            $newUser->provider = $provider;
+            $newUser->access_token = $user->token;
+            $newUser->save();
+            auth()->login($newUser, true);
+        }
+    }
+
+    // Transfer cart items
+    if (session('temp_user_id') != null) {
+        Cart::where('temp_user_id', session('temp_user_id'))
+            ->update([
+                'user_id' => auth()->user()->id,
+                'temp_user_id' => null
+            ]);
+        Session::forget('temp_user_id');
+    }
+
+    // Redirect based on user type
+    if (session('link') != null) {
+        return redirect(session('link'));
+    } else {
+        if (auth()->user()->user_type == 'seller') {
+            return redirect()->route('seller.dashboard');
+        }
+        return redirect()->route('dashboard');
+    }
+}
+```
+
+### Apple Callback Handler
+
+Apple requires special handling:
+
+```php app/Http/Controllers/Auth/LoginController.php
+public function handleAppleCallback(Request $request)
+{
+    try {
+        $user = Socialite::driver("sign-in-with-apple")->user();
+    } catch (\Exception $e) {
+        flash(translate("Something Went wrong. Please try again."))->error();
+        return redirect()->route('user.login');
+    }
+    
+    $existingUserByProviderId = User::where('provider_id', $user->id)->first();
+
+    if ($existingUserByProviderId) {
+        $existingUserByProviderId->access_token = $user->token;
+        $existingUserByProviderId->refresh_token = $user->refreshToken;
+        if (!isset($user->user['is_private_email'])) {
+            $existingUserByProviderId->email = $user->email;
+        }
+        $existingUserByProviderId->save();
+        auth()->login($existingUserByProviderId, true);
+    } else {
+        $existing_or_new_user = User::firstOrNew([
+            'email' => $user->email
+        ]);
+        $existing_or_new_user->provider_id = $user->id;
+        $existing_or_new_user->access_token = $user->token;
+        $existing_or_new_user->refresh_token = $user->refreshToken;
+        $existing_or_new_user->provider = 'apple';
+        
+        if (!$existing_or_new_user->exists) {
+            $existing_or_new_user->name = 'Apple User';
+            if ($user->name) {
+                $existing_or_new_user->name = $user->name;
+            }
+            $existing_or_new_user->email = $user->email;
+            $existing_or_new_user->email_verified_at = date('Y-m-d H:m:s');
+        }
+        $existing_or_new_user->save();
+        auth()->login($existing_or_new_user, true);
+    }
+
+    // Handle cart transfer and redirects
+    // ... (same as other providers)
+}
+```
+
+## Cart Transfer
+
+When users login via social, transfer guest cart items:
+
+```php
+if (session('temp_user_id') != null) {
+    Cart::where('temp_user_id', session('temp_user_id'))
+        ->update([
+            'user_id' => auth()->user()->id,
+            'temp_user_id' => null
+        ]);
+    Session::forget('temp_user_id');
+}
+```
+
+## Mobile App Support
+
+For mobile app social login:
+
+```php
+public function mobileHandleProviderCallback($request, $provider)
+{
+    $return_provider = '';
+    $result = false;
+    if ($provider) {
+        $return_provider = $provider;
+        $result = true;
+    }
+    return response()->json([
+        'result' => $result,
+        'provider' => $return_provider
+    ]);
+}
+```
+
+## User Database Fields
+
+Social login users have these additional fields:
+
+```php
+$user->provider_id      // Social provider's user ID
+$user->provider         // Provider name (google, facebook, etc.)
+$user->access_token     // OAuth access token
+$user->refresh_token    // OAuth refresh token (Apple)
+```
+
+## Routes Configuration
+
+```php routes/web.php
+// Social Login Routes
+Route::get('social-login/{provider}', [LoginController::class, 'redirectToProvider'])->name('social.login');
+Route::get('social-login/{provider}/callback', [LoginController::class, 'handleProviderCallback'])->name('social.callback');
+Route::get('social-login/apple/callback', [LoginController::class, 'handleAppleCallback'])->name('apple.callback');
+```
+
+## Frontend Implementation
+
+Add social login buttons to your login/register forms:
+
+```html
+<a href="{{ route('social.login', ['provider' => 'google']) }}" class="btn btn-google">
+    <i class="fab fa-google"></i> Sign in with Google
+</a>
+
+<a href="{{ route('social.login', ['provider' => 'facebook']) }}" class="btn btn-facebook">
+    <i class="fab fa-facebook"></i> Sign in with Facebook
+</a>
+
+<a href="{{ route('social.login', ['provider' => 'twitter']) }}" class="btn btn-twitter">
+    <i class="fab fa-twitter"></i> Sign in with Twitter
+</a>
+
+<a href="{{ route('social.login', ['provider' => 'apple']) }}" class="btn btn-apple">
+    <i class="fab fa-apple"></i> Sign in with Apple
+</a>
+```
+
+## Email Verification
+
+Social login users are automatically email verified:
+
+```php
+$newUser->email_verified_at = date('Y-m-d Hms');
+```
+
+## Security Considerations
+
+<Warning>
+  **Social Login Security**
+  
+  - Always use HTTPS for OAuth callbacks
+  - Validate redirect URLs match configured domains
+  - Never expose OAuth secrets in frontend code
+  - Implement CSRF protection
+  - Verify email addresses when possible
+  - Handle private email relay (Apple)
+  - Regularly rotate OAuth secrets
+  - Monitor for suspicious login patterns
+</Warning>
+
+## Apple Private Email Relay
+
+Apple users can hide their email:
+
+```php
+if (!isset($user->user['is_private_email'])) {
+    $existingUserByProviderId->email = $user->email;
+}
+```
+
+Handle private relay emails gracefully.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Redirect URI Mismatch">
+    **Error**: `redirect_uri_mismatch`
+    
+    **Solution**:
+    - Verify callback URL in provider settings matches exactly
+    - Check for HTTP vs HTTPS
+    - Ensure no trailing slashes
+    - Verify domain is authorized
+  </Accordion>
+  
+  <Accordion title="Invalid Client ID">
+    **Error**: `invalid_client`
+    
+    **Solution**:
+    - Check Client ID in `.env` is correct
+    - Verify no extra spaces in credentials
+    - Ensure app is published/approved
+  </Accordion>
+  
+  <Accordion title="Access Denied">
+    **Error**: User cancels authorization
+    
+    **Solution**:
+    - Handle exception gracefully
+    - Redirect to login with message
+    - Don't force social login
+  </Accordion>
+  
+  <Accordion title="Email Already Exists">
+    **Issue**: User already registered with email
+    
+    **Solution**:
+    - Link social account to existing email
+    - Update provider_id and access_token
+    - Implemented in code above
+  </Accordion>
+</AccordionGroup>
+
+## Enable/Disable Social Login
+
+Configure in admin panel:
+
+- Navigate to **Settings** → **Social Login**
+- Enable/disable each provider
+- Enter API credentials
+- Save configuration
+
+## Testing
+
+### Development Testing
+
+1. Use localhost redirect URLs during development
+2. Test with real social accounts
+3. Verify cart transfer works
+4. Test user creation and login
+5. Check email verification status
+
+### Production Checklist
+
+<Steps>
+  <Step title="Update Redirect URLs">
+    Change localhost to production domain in provider settings
+  </Step>
+  
+  <Step title="Verify SSL Certificate">
+    Ensure HTTPS is working properly
+  </Step>
+  
+  <Step title="Test Each Provider">
+    Login with each social provider
+  </Step>
+  
+  <Step title="Privacy Policy">
+    Update privacy policy for social login data usage
+  </Step>
+  
+  <Step title="App Review">
+    Submit for review if required (Facebook, Apple)
+  </Step>
+</Steps>
+
+## Best Practices
+
+- Offer traditional email/password option alongside social login
+- Clearly communicate data usage in privacy policy
+- Handle account linking gracefully
+- Support account deletion per GDPR
+- Test across different devices and browsers
+- Monitor OAuth error rates
+- Keep Socialite package updated
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="SMS/OTP Integration" icon="message" href="/integrations/sms-otp">
+    Configure SMS and OTP verification
+  </Card>
+  <Card title="User Management" icon="users" href="/core/users">
+    Manage user accounts
+  </Card>
+</CardGroup>

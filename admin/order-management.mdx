@@ -1,0 +1,287 @@
+---
+title: Order Management
+description: Process, track, and manage customer orders across your e-commerce platform
+---
+
+## Overview
+
+The order management system provides comprehensive tools to process customer orders, update delivery and payment statuses, and manage order fulfillment across all sellers on the platform.
+
+## Order Views
+
+### All Orders
+
+View every order placed on the platform.
+
+**Route**: `/admin/all_orders`
+
+### In-House Orders
+
+Orders for products sold directly by the platform (not through sellers).
+
+**Route**: `/admin/inhouse-orders`
+
+### Seller Orders
+
+Orders for products sold by individual sellers.
+
+**Route**: `/admin/seller_orders`
+
+### Pickup Point Orders
+
+Orders designated for pickup at specific locations.
+
+**Route**: `/admin/orders_by_pickup_point`
+
+## Viewing Order Details
+
+<Steps>
+  <Step title="Access Orders List">
+    Navigate to the appropriate order view (All Orders, Seller Orders, etc.)
+    
+    **Screenshot Description**: Order management dashboard showing order list with status filters
+  </Step>
+  
+  <Step title="Filter Orders">
+    Use filters to find specific orders:
+    - Payment status (paid, unpaid)
+    - Delivery status (pending, processing, shipped, delivered, cancelled)
+    - Order code search
+  </Step>
+  
+  <Step title="Open Order Details">
+    Click on an order to view complete details
+    
+    **Routes**:
+    - All orders: `/admin/all_orders/{id}/show`
+    - In-house: `/admin/inhouse-orders/{id}/show`
+    - Seller: `/admin/seller_orders/{id}/show`
+  </Step>
+</Steps>
+
+## Order Information
+
+When viewing an order, you can see:
+
+- **Customer Information**: Name, email, phone
+- **Shipping Address**: Full delivery address
+- **Order Items**: Products, quantities, prices
+- **Payment Details**: Method, status, transaction info
+- **Delivery Status**: Current fulfillment stage
+- **Order Timeline**: Status change history
+
+## Managing Order Status
+
+### Updating Delivery Status
+
+<Steps>
+  <Step title="Open Order Details">
+    Navigate to the specific order page
+  </Step>
+  
+  <Step title="Select New Delivery Status">
+    Choose from available statuses:
+    - Pending
+    - Confirmed
+    - Processing
+    - Picked Up
+    - On The Way
+    - Delivered
+    - Cancelled
+    
+    **Screenshot Description**: Delivery status dropdown with all available status options
+  </Step>
+  
+  <Step title="Update Status">
+    Click "Update Status" to save changes
+    
+    **Route**: POST `/admin/orders/update_delivery_status`
+  </Step>
+  
+  <Step title="Customer Notification">
+    Customer receives automated notification about status change
+  </Step>
+</Steps>
+
+<Note>
+When an order is marked as "Cancelled", the system automatically:
+- Refunds wallet payments to customer balance
+- Returns product stock quantities
+- Updates all order detail items
+</Note>
+
+### Updating Payment Status
+
+<Steps>
+  <Step title="Access Order Payment Section">
+    Open the order and locate the payment status section
+  </Step>
+  
+  <Step title="Change Payment Status">
+    Select new status:
+    - Unpaid
+    - Paid
+    
+    **Route**: POST `/admin/orders/update_payment_status`
+  </Step>
+  
+  <Step title="Trigger Commission Calculation">
+    When marked as "Paid", the system automatically calculates:
+    - Seller commissions
+    - Affiliate commissions (if applicable)
+    - Club points (if applicable)
+  </Step>
+</Steps>
+
+### Adding Tracking Code
+
+Provide customers with shipment tracking information.
+
+<Steps>
+  <Step title="Locate Tracking Section">
+    In the order details, find the tracking code field
+  </Step>
+  
+  <Step title="Enter Tracking Code">
+    Input the carrier's tracking number
+    
+    **Route**: POST `/admin/orders/update_tracking_code`
+  </Step>
+  
+  <Step title="Save and Notify">
+    Save the tracking code - customer receives notification with tracking details
+  </Step>
+</Steps>
+
+## Bulk Order Operations
+
+### Bulk Status Update
+
+Update multiple orders simultaneously.
+
+<Steps>
+  <Step title="Select Multiple Orders">
+    Check the boxes next to orders you want to update
+  </Step>
+  
+  <Step title="Choose Bulk Action">
+    Select "Update Status" from the bulk actions dropdown
+    
+    **Route**: POST `/admin/bulk-order-status`
+  </Step>
+  
+  <Step title="Apply Status">
+    Choose the new status and confirm to update all selected orders
+  </Step>
+</Steps>
+
+### Bulk Order Delete
+
+<Steps>
+  <Step title="Select Orders">
+    Check multiple orders for deletion
+  </Step>
+  
+  <Step title="Execute Bulk Delete">
+    Click "Delete Selected"
+    
+    **Route**: POST `/admin/bulk-order-delete`
+  </Step>
+  
+  <Step title="Confirm Deletion">
+    Confirm to permanently remove the orders
+  </Step>
+</Steps>
+
+<Tip>
+Use bulk operations to efficiently process multiple orders with the same status update, such as marking multiple orders as "shipped" at once.
+</Tip>
+
+## Delivery Boy Assignment
+
+If the delivery boy addon is activated, assign orders to delivery personnel.
+
+<Steps>
+  <Step title="View Order Details">
+    Open the order requiring delivery assignment
+  </Step>
+  
+  <Step title="Select Delivery Boy">
+    Choose from available delivery personnel in the customer's city
+  </Step>
+  
+  <Step title="Assign Order">
+    Click "Assign" to assign the order
+    
+    **Route**: POST `/admin/orders/delivery-boy-assign`
+  </Step>
+</Steps>
+
+<Note>
+Delivery boys are filtered by city based on the order's shipping address to ensure efficient local delivery.
+</Note>
+
+## Order Deletion
+
+Permanently remove orders from the system.
+
+**Route**: `/admin/orders/destroy/{id}`
+
+<Tip>
+Before deleting orders:
+- Ensure all necessary data has been backed up
+- Verify refunds have been processed (if applicable)
+- Export order data for record-keeping
+</Tip>
+
+## Commission Management
+
+### Paying Seller Commissions
+
+Process commission payments to sellers.
+
+<Steps>
+  <Step title="Access Commission Section">
+    Navigate to Commissions from the admin menu
+  </Step>
+  
+  <Step title="Select Seller">
+    Choose the seller to pay
+  </Step>
+  
+  <Step title="Process Payment">
+    Enter payment details and confirm
+    
+    **Route**: POST `/admin/pay_to_seller`
+  </Step>
+</Steps>
+
+## Order Notifications
+
+The system sends automatic notifications when:
+
+- Delivery status changes
+- Payment status is updated
+- Tracking code is added
+- Order is cancelled
+
+### Notification Channels
+
+- **Email**: Sent to customer email address
+- **SMS**: If OTP system addon is activated
+- **Push Notifications**: If Firebase is configured
+- **In-App**: Displayed in customer dashboard
+
+## Best Practices
+
+1. **Timely Updates**: Update order statuses promptly to keep customers informed
+2. **Accurate Tracking**: Always provide tracking codes when available
+3. **Clear Communication**: Use the order notes field for internal coordination
+4. **Regular Monitoring**: Check pending orders daily
+5. **Payment Verification**: Confirm payment before marking orders as paid
+
+## Related Sections
+
+- [Product Management](/admin/product-management)
+- [User Management](/admin/user-management)
+- [Business Settings](/admin/business-settings)

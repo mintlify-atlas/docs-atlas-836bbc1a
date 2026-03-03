@@ -1,0 +1,329 @@
+---
+title: Seller Packages
+description: Create subscription plans for sellers with upload limits and duration-based pricing
+---
+
+## Overview
+
+Seller packages enable you to monetize your multi-vendor marketplace by offering tiered subscription plans. Each package defines product upload limits, duration, and pricing for sellers.
+
+<CardGroup cols={2}>
+  <Card title="Upload Limits" icon="arrow-up-from-bracket">
+    Control how many products sellers can list based on their package
+  </Card>
+  <Card title="Duration-Based" icon="calendar">
+    Set package validity periods in days
+  </Card>
+  <Card title="Online & Offline" icon="credit-card">
+    Accept both online payments and offline payment verification
+  </Card>
+  <Card title="Auto Unpublish" icon="eye-slash">
+    Automatically unpublish products when packages expire
+  </Card>
+</CardGroup>
+
+## Model Structure
+
+### SellerPackage Model
+
+The `SellerPackage` model manages subscription tiers:
+
+```php
+class SellerPackage extends Model
+{
+    protected $guarded = [];
+
+    public function getTranslation($field = '', $lang = false){
+        $lang = $lang == false ? App::getLocale() : $lang;
+        $seller_package_translation = $this->hasMany(SellerPackageTranslation::class)
+            ->where('lang', $lang)->first();
+        return $seller_package_translation != null ? 
+            $seller_package_translation->$field : $this->$field;
+    }
+
+    public function seller_package_translations(){
+        return $this->hasMany(SellerPackageTranslation::class);
+    }
+
+    public function seller_package_payments()
+    {
+        return $this->hasMany(SelllerPackagePayment::class);
+    }
+
+    public function shop()
+    {
+        return $this->hasOne(Shop::class);
+    }
+}
+```
+
+**Key Fields:**
+- `name` - Package name
+- `amount` - Package price
+- `product_upload_limit` - Maximum products allowed
+- `duration` - Package validity in days
+- `logo` - Package icon/logo
+
+## Creating Packages
+
+Create seller packages with translations (`app/Http/Controllers/SellerPackageController.php:52`):
+
+```php
+public function store(Request $request)
+{
+    $seller_package = new SellerPackage;
+    $seller_package->name = $request->name;
+    $seller_package->amount = $request->amount;
+    $seller_package->product_upload_limit = $request->product_upload_limit;
+    $seller_package->duration = $request->duration;
+    $seller_package->logo = $request->logo;
+    
+    if ($seller_package->save()) {
+        $seller_package_translation = SellerPackageTranslation::firstOrNew([
+            'lang' => env('DEFAULT_LANGUAGE'), 
+            'seller_package_id' => $seller_package->id
+        ]);
+        $seller_package_translation->name = $request->name;
+        $seller_package_translation->save();
+
+        flash(translate('Package has been inserted successfully'))->success();
+        return redirect()->route('seller_packages.index');
+    }
+}
+```
+
+## Package Purchase Flow
+
+### Online Payment
+
+<Steps>
+  <Step title="Select Package">
+    Seller chooses a package from the available options
+  </Step>
+  <Step title="Choose Payment Method">
+    Select payment gateway (PayPal, Stripe, etc.)
+  </Step>
+  <Step title="Process Payment">
+    Payment is processed through the selected gateway
+  </Step>
+  <Step title="Update Shop Limits">
+    Product upload limit and expiry date are updated
+  </Step>
+  <Step title="Record Payment">
+    Payment history is stored for reference
+  </Step>
+</Steps>
+
+**Implementation** (`app/Http/Controllers/SellerPackageController.php:160`):
+
+```php
+public function purchase_package(Request $request)
+{
+    $data['seller_package_id'] = $request->seller_package_id;
+    $data['payment_method'] = $request->payment_option;
+
+    $request->session()->put('payment_type', 'seller_package_payment');
+    $request->session()->put('payment_data', $data);
+
+    $seller_package = SellerPackage::findOrFail(
+        Session::get('payment_data')['seller_package_id']
+    );
+
+    // Free package
+    if ($seller_package->amount == 0) {
+        return $this->purchase_payment_done(
+            Session::get('payment_data'), null
+        );
+    } 
+    // Check downgrade restriction
+    elseif (Auth::user()->shop->seller_package != null && 
+            $seller_package->product_upload_limit < 
+            Auth::user()->shop->seller_package->product_upload_limit) {
+        flash(translate('You have more uploaded products than this package limit. You need to remove excessive products to downgrade.'))->warning();
+        return back();
+    }
+
+    $decorator = __NAMESPACE__ . '\\Payment\\' . 
+        str_replace(' ', '', ucwords(str_replace('_', ' ', $request->payment_option))) . 
+        "Controller";
+    if (class_exists($decorator)) {
+        return (new $decorator)->pay($request);
+    }
+}
+```
+
+### Payment Completion
+
+After successful payment (`app/Http/Controllers/SellerPackageController.php:183`):
+
+```php
+public function purchase_payment_done($payment_data, $payment)
+{
+    $seller = Auth::user()->shop;
+    $seller->seller_package_id = Session::get('payment_data')['seller_package_id'];
+    $seller_package = SellerPackage::findOrFail(
+        Session::get('payment_data')['seller_package_id']
+    );
+    $seller->product_upload_limit = $seller_package->product_upload_limit;
+    $seller->package_invalid_at = date('Y-m-d', 
+        strtotime($seller->package_invalid_at . ' +' . $seller_package->duration . 'days')
+    );
+    $seller->save();
+
+    $seller_package = new SellerPackagePayment;
+    $seller_package->user_id = Auth::user()->id;
+    $seller_package->seller_package_id = Session::get('payment_data')['seller_package_id'];
+    $seller_package->payment_method = Session::get('payment_data')['payment_method'];
+    $seller_package->payment_details = $payment;
+    $seller_package->approval = 1;
+    $seller_package->offline_payment = 2;
+    $seller_package->save();
+
+    flash(translate('Package purchasing successful'))->success();
+    return redirect()->route('seller.dashboard');
+}
+```
+
+### Offline Payment
+
+Sellers can pay offline and upload receipt for verification (`app/Http/Controllers/SellerPackageController.php:220`):
+
+```php
+public function purchase_package_offline(Request $request)
+{
+    $seller_package = SellerPackage::findOrFail($request->package_id);
+
+    // Check downgrade restriction
+    if (Auth::user()->shop->seller_package != null && 
+        $seller_package->product_upload_limit < 
+        Auth::user()->shop->seller_package->product_upload_limit) {
+        flash(translate('You have more uploaded products than this package limit. You need to remove excessive products to downgrade.'))->warning();
+        return redirect()->route('seller.seller_packages_list');
+    }
+    
+    $seller_package = new SellerPackagePayment;
+    $seller_package->user_id = Auth::user()->id;
+    $seller_package->seller_package_id = $request->package_id;
+    $seller_package->payment_method = $request->payment_option;
+    $seller_package->payment_details = $request->trx_id;
+    $seller_package->approval = 0;  // Pending approval
+    $seller_package->offline_payment = 1;
+    $seller_package->reciept = $request->photo;
+    $seller_package->save();
+    
+    flash(translate('Offline payment has been done. Please wait for response.'))->success();
+    return redirect()->route('seller.products');
+}
+```
+
+<Warning>
+Offline payments require manual approval from admin before the package becomes active.
+</Warning>
+
+## Automatic Package Expiry
+
+Automatically unpublish products when packages expire (`app/Http/Controllers/SellerPackageController.php:205`):
+
+```php
+public function unpublish_products(Request $request)
+{
+    foreach (Shop::all() as $shop) {
+        if ($shop->package_invalid_at != null && 
+            Carbon::now()->diffInDays(Carbon::parse($shop->package_invalid_at), false) <= 0) {
+            foreach ($shop->user->products as $product) {
+                $product->published = 0;
+                $product->save();
+            }
+            $shop->seller_package_id = null;
+            $shop->save();
+        }
+    }
+    Artisan::call('cache:clear');
+}
+```
+
+<Note>
+This method should be called via a scheduled task (cron job) to automatically expire packages.
+</Note>
+
+## Downgrade Protection
+
+The system prevents sellers from downgrading if they have more products than the new limit allows:
+
+```php
+if (Auth::user()->shop->seller_package != null && 
+    $seller_package->product_upload_limit < 
+    Auth::user()->shop->seller_package->product_upload_limit) {
+    flash(translate('You have more uploaded products than this package limit. You need to remove excessive products to downgrade.'))->warning();
+    return back();
+}
+```
+
+## Package Translations
+
+Supports multi-language package names:
+
+```php
+public function update(Request $request, $id)
+{
+    $seller_package = SellerPackage::findOrFail($id);
+    if ($request->lang == env("DEFAULT_LANGUAGE")) {
+        $seller_package->name = $request->name;
+    }
+    $seller_package->amount = $request->amount;
+    $seller_package->product_upload_limit = $request->product_upload_limit;
+    $seller_package->duration = $request->duration;
+    $seller_package->logo = $request->logo;
+    
+    if ($seller_package->save()) {
+        $seller_package_translation = SellerPackageTranslation::firstOrNew([
+            'lang' => $request->lang, 
+            'seller_package_id' => $seller_package->id
+        ]);
+        $seller_package_translation->name = $request->name;
+        $seller_package_translation->save();
+        
+        flash(translate('Package has been inserted successfully'))->success();
+        return redirect()->route('seller_packages.index');
+    }
+}
+```
+
+## Permissions
+
+Package management uses role-based permissions:
+
+```php
+public function __construct() {
+    $this->middleware(['permission:view_all_seller_packages'])->only('index');
+    $this->middleware(['permission:add_seller_package'])->only('create');
+    $this->middleware(['permission:edit_seller_package'])->only('edit');
+    $this->middleware(['permission:delete_seller_package'])->only('destroy');
+}
+```
+
+## Payment History
+
+Sellers can view their package purchase history (`app/Http/Controllers/SellerPackageController.php:148`):
+
+```php
+public function packages_payment_list()
+{
+    $seller_packages_payment = SellerPackagePayment::with('seller_package')
+        ->where('user_id', Auth::user()->id)
+        ->paginate(15);
+    return view('seller_packages.frontend.packages_payment_list', 
+        compact('seller_packages_payment'));
+}
+```
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Seller Management" href="/features/seller-management">
+    Manage seller accounts and verification
+  </Card>
+  <Card title="Wholesale Products" href="/features/wholesale">
+    Check seller package limits when adding wholesale products
+  </Card>
+</CardGroup>

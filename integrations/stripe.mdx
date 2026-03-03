@@ -1,0 +1,354 @@
+---
+title: 'Stripe Integration'
+description: 'Configure Stripe payment gateway for global card payments'
+icon: 'stripe'
+---
+
+## Overview
+
+Stripe is a global payment processing platform that enables businesses to accept credit and debit card payments online. Ecom uses Stripe Checkout for a secure, PCI-compliant payment experience.
+
+## Prerequisites
+
+- Stripe account ([Sign up here](https://dashboard.stripe.com/register))
+- API keys from Stripe Dashboard
+- SSL certificate installed on your domain
+
+## Configuration
+
+### Step 1: Get Stripe API Keys
+
+<Steps>
+  <Step title="Access Stripe Dashboard">
+    Log in to your [Stripe Dashboard](https://dashboard.stripe.com/)
+  </Step>
+  
+  <Step title="Navigate to API Keys">
+    Go to **Developers** → **API keys**
+  </Step>
+  
+  <Step title="Copy Your Keys">
+    Copy the **Publishable key** and **Secret key**
+    
+    <Warning>
+      Use **Test keys** for development and **Live keys** for production only
+    </Warning>
+  </Step>
+</Steps>
+
+### Step 2: Configure Environment Variables
+
+Add these variables to your `.env` file:
+
+```bash .env
+# Stripe Configuration
+STRIPE_KEY=pk_test_51H... # Your publishable key
+STRIPE_SECRET=sk_test_51H... # Your secret key
+```
+
+<Warning>
+  **Security Alert**
+  
+  Never commit your `.env` file or expose your secret key in client-side code. The secret key should only be used server-side.
+</Warning>
+
+### Step 3: Enable Stripe in Admin Panel
+
+<Steps>
+  <Step title="Login to Admin Panel">
+    Access your admin dashboard
+  </Step>
+  
+  <Step title="Navigate to Payment Settings">
+    Go to **Setup & Configurations** → **Payment Methods**
+  </Step>
+  
+  <Step title="Enable Stripe">
+    Toggle Stripe to **Active** and save settings
+  </Step>
+</Steps>
+
+## Implementation Details
+
+The Stripe integration uses Stripe Checkout Sessions for secure payment processing.
+
+### Controller Location
+
+```
+app/Http/Controllers/Payment/StripeController.php
+```
+
+### Payment Flow
+
+<Steps>
+  <Step title="Create Checkout Session">
+    Customer initiates payment, system creates Stripe Checkout Session
+    
+    ```php app/Http/Controllers/Payment/StripeController.php
+    public function create_checkout_session(Request $request)
+    {
+        $amount = 0;
+        if ($request->session()->has('payment_type')) {
+            if ($request->session()->get('payment_type') == 'cart_payment') {
+                $combined_order = CombinedOrder::findOrFail(Session::get('combined_order_id'));
+                $client_reference_id = $combined_order->id;
+                $amount = round($combined_order->grand_total * 100);
+            }
+        }
+
+        \Stripe\Stripe::setApiKey(env('STRIPE_SECRET'));
+
+        $session = \Stripe\Checkout\Session::create([
+            'payment_method_types' => ['card'],
+            'line_items' => [
+                [
+                    'price_data' => [
+                        'currency' => \App\Models\Currency::findOrFail(get_setting('system_default_currency'))->code,
+                        'product_data' => [
+                            'name' => "Payment"
+                        ],
+                        'unit_amount' => $amount,
+                    ],
+                    'quantity' => 1,
+                ]
+            ],
+            'mode' => 'payment',
+            'client_reference_id' => $client_reference_id,
+            'success_url' => url("/stripe/success?session_id={CHECKOUT_SESSION_ID}"),
+            'cancel_url' => route('stripe.cancel'),
+        ]);
+
+        return response()->json(['id' => $session->id, 'status' => 200]);
+    }
+    ```
+  </Step>
+  
+  <Step title="Customer Completes Payment">
+    Customer is redirected to Stripe's hosted checkout page to enter card details
+  </Step>
+  
+  <Step title="Handle Success Callback">
+    After successful payment, customer is redirected to success URL
+    
+    ```php app/Http/Controllers/Payment/StripeController.php
+    public function success(Request $request)
+    {
+        $stripe = new \Stripe\StripeClient(env('STRIPE_SECRET'));
+        
+        try {
+            $session = $stripe->checkout->sessions->retrieve($request->session_id);
+            $payment = ["status" => "Success"];
+            $payment_type = Session::get('payment_type');
+
+            if($session->status == 'complete') {
+                if ($payment_type == 'cart_payment') {
+                    return (new CheckoutController)->checkout_done(session()->get('combined_order_id'), json_encode($payment));
+                }
+                else if ($payment_type == 'wallet_payment') {
+                    return (new WalletController)->wallet_payment_done(session()->get('payment_data'), json_encode($payment));
+                }
+            }
+        } catch (\Exception $e) {
+            flash(translate('Payment failed'))->error();
+            return redirect()->route('home');
+        }
+    }
+    ```
+  </Step>
+  
+  <Step title="Order Confirmation">
+    System verifies payment and completes order
+  </Step>
+</Steps>
+
+## Currency Handling
+
+<Note>
+  **Important**: Stripe requires amounts in the smallest currency unit (cents)
+  
+  The system automatically multiplies amounts by 100:
+  ```php
+  $amount = round($combined_order->grand_total * 100);
+  ```
+</Note>
+
+Supported currencies are determined by your system's default currency setting:
+
+```php
+'currency' => \App\Models\Currency::findOrFail(get_setting('system_default_currency'))->code,
+```
+
+## Routes Configuration
+
+Stripe requires these routes in `routes/web.php`:
+
+```php routes/web.php
+// Stripe Payment Routes
+Route::post('stripe/create-checkout-session', [StripeController::class, 'create_checkout_session'])->name('stripe.create_checkout_session');
+Route::get('stripe/success', [StripeController::class, 'success'])->name('stripe.success');
+Route::get('stripe/cancel', [StripeController::class, 'cancel'])->name('stripe.cancel');
+```
+
+## Dependencies
+
+Stripe PHP SDK is included via Composer:
+
+```json composer.json
+"require": {
+    "stripe/stripe-php": "^10.5"
+}
+```
+
+## Testing
+
+### Test Mode
+
+Use Stripe test API keys for development:
+
+```bash
+STRIPE_KEY=pk_test_...
+STRIPE_SECRET=sk_test_...
+```
+
+### Test Card Numbers
+
+| Card Number | Description |
+|-------------|-------------|
+| 4242 4242 4242 4242 | Successful payment |
+| 4000 0000 0000 0002 | Card declined |
+| 4000 0000 0000 9995 | Insufficient funds |
+| 4000 0025 0000 3155 | Requires authentication (3D Secure) |
+
+Use any future expiry date, any 3-digit CVC, and any postal code.
+
+## Error Handling
+
+The controller implements comprehensive error handling:
+
+```php
+try {
+    $session = $stripe->checkout->sessions->retrieve($request->session_id);
+    // Process payment
+} catch (\Exception $e) {
+    flash(translate('Payment failed'))->error();
+    return redirect()->route('home');
+}
+```
+
+## Payment Cancellation
+
+When customers cancel payment:
+
+```php app/Http/Controllers/Payment/StripeController.php
+public function cancel(Request $request)
+{
+    flash(translate('Payment is cancelled'))->error();
+    return redirect()->route('home');
+}
+```
+
+## Supported Payment Types
+
+The Stripe integration supports:
+
+- **Cart Payment** - Standard checkout
+- **Wallet Payment** - Wallet recharge
+- **Customer Package Payment** - Customer subscription
+- **Seller Package Payment** - Seller subscription
+
+## Webhooks (Optional)
+
+For production environments, configure webhooks for payment confirmations:
+
+<Steps>
+  <Step title="Create Webhook Endpoint">
+    In Stripe Dashboard, go to **Developers** → **Webhooks**
+  </Step>
+  
+  <Step title="Add Endpoint URL">
+    ```
+    https://yourdomain.com/stripe/webhook
+    ```
+  </Step>
+  
+  <Step title="Select Events">
+    Listen for:
+    - `checkout.session.completed`
+    - `payment_intent.succeeded`
+    - `payment_intent.payment_failed`
+  </Step>
+  
+  <Step title="Get Signing Secret">
+    Copy the webhook signing secret to `.env`:
+    ```bash
+    STRIPE_WEBHOOK_SECRET=whsec_...
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### Payment Not Processing
+
+<AccordionGroup>
+  <Accordion title="Check API keys are correct">
+    Verify `STRIPE_KEY` and `STRIPE_SECRET` in `.env` match your Stripe dashboard
+  </Accordion>
+  
+  <Accordion title="Verify SSL certificate">
+    Stripe requires HTTPS in production. Check your SSL certificate is valid.
+  </Accordion>
+  
+  <Accordion title="Check currency compatibility">
+    Ensure your system currency is supported by Stripe
+  </Accordion>
+  
+  <Accordion title="Review Stripe logs">
+    Check Stripe Dashboard → **Developers** → **Logs** for error details
+  </Accordion>
+</AccordionGroup>
+
+### Amount Mismatch
+
+<Warning>
+  Ensure amounts are multiplied by 100 for cent conversion:
+  ```php
+  $amount = round($combined_order->grand_total * 100); // Correct
+  $amount = $combined_order->grand_total; // Wrong!
+  ```
+</Warning>
+
+## Going Live
+
+<Steps>
+  <Step title="Complete Stripe Account Verification">
+    Submit required business information in Stripe Dashboard
+  </Step>
+  
+  <Step title="Switch to Live API Keys">
+    Replace test keys with live keys in `.env`:
+    ```bash
+    STRIPE_KEY=pk_live_...
+    STRIPE_SECRET=sk_live_...
+    ```
+  </Step>
+  
+  <Step title="Test Live Payments">
+    Make a small test transaction to verify everything works
+  </Step>
+  
+  <Step title="Enable in Production">
+    Activate Stripe in your production admin panel
+  </Step>
+</Steps>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Payment Overview" icon="credit-card" href="/integrations/payments-overview">
+    Learn about payment gateway architecture
+  </Card>
+  <Card title="PayPal Integration" icon="paypal" href="/integrations/paypal">
+    Configure PayPal as alternative gateway
+  </Card>
+</CardGroup>

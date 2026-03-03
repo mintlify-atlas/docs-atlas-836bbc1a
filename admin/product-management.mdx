@@ -1,0 +1,299 @@
+---
+title: Product Management
+description: Manage products, categories, brands, and inventory across your e-commerce platform
+---
+
+## Overview
+
+The product management system allows administrators to oversee all products on the platform, including those created by sellers and in-house products. You can manage product approval, featured status, and inventory settings.
+
+## Product Types
+
+### Admin Products
+
+Products created and managed directly by the platform administration.
+
+**Route**: `/admin/products/admin`
+
+### Seller Products
+
+Products uploaded by individual sellers that may require approval.
+
+**Route**: `/admin/products/seller/{product_type}`
+
+Product types include:
+- Physical products
+- Digital products
+- Wholesale products
+- Auction products
+
+### All Products View
+
+Access a comprehensive list of all products across the platform.
+
+**Route**: `/admin/products/all`
+
+## Managing Products
+
+### Creating Products
+
+<Steps>
+  <Step title="Navigate to Product Creation">
+    Go to Products > Create New Product
+    
+    **Screenshot Description**: Product menu with "Create New Product" button highlighted
+  </Step>
+  
+  <Step title="Fill Product Information">
+    Enter the following details:
+    - Product name
+    - Category selection
+    - Brand (optional)
+    - Unit and description
+    - Tags for searchability
+  </Step>
+  
+  <Step title="Set Pricing and Stock">
+    Configure:
+    - Unit price
+    - SKU combinations (if variants exist)
+    - Current stock levels
+    - Color options (if applicable)
+  </Step>
+  
+  <Step title="Add VAT & Tax">
+    Select applicable tax rates and types:
+    - Tax ID
+    - Tax percentage
+    - Tax type (inclusive/exclusive)
+  </Step>
+  
+  <Step title="Save Product">
+    Click "Save" to create the product
+  </Step>
+</Steps>
+
+### Editing Products
+
+<Steps>
+  <Step title="Locate Product">
+    Find the product using the search function or browse product listings
+  </Step>
+  
+  <Step title="Access Edit Mode">
+    Click the edit icon next to the product
+    
+    **Admin products**: `/admin/products/admin/{id}/edit`  
+    **Seller products**: `/admin/products/seller/{id}/edit`
+  </Step>
+  
+  <Step title="Modify Product Details">
+    Update any product information, stock levels, or configurations
+  </Step>
+  
+  <Step title="Update Product">
+    Save changes to update the product
+  </Step>
+</Steps>
+
+## Product Features
+
+### Featured Products
+
+Mark products as featured to highlight them on the homepage.
+
+<Steps>
+  <Step title="Select Products">
+    Choose products from the product list
+  </Step>
+  
+  <Step title="Toggle Featured Status">
+    Use the featured toggle switch or bulk action menu
+  </Step>
+  
+  <Step title="Confirm Changes">
+    Featured products will appear in designated homepage sections
+  </Step>
+</Steps>
+
+### Today's Deal
+
+Promote products in the "Today's Deal" section for increased visibility.
+
+**Route**: POST `/admin/products/todays_deal`
+
+### Product Approval
+
+If seller product approval is enabled, review and approve seller products.
+
+<Steps>
+  <Step title="Review Pending Products">
+    Navigate to Seller Products with "Pending" status filter
+  </Step>
+  
+  <Step title="Evaluate Product">
+    Check product details, images, pricing, and descriptions
+  </Step>
+  
+  <Step title="Approve or Reject">
+    Toggle the approval status
+    
+    **Route**: POST `/admin/products/approved`
+  </Step>
+</Steps>
+
+<Note>
+Product approval is controlled by the `product_approve_by_admin` business setting. When enabled, all seller products require admin approval before appearing on the storefront.
+</Note>
+
+## Category Management
+
+### Creating Categories
+
+<Steps>
+  <Step title="Access Categories">
+    Navigate to Categories section from the admin menu
+  </Step>
+  
+  <Step title="Add New Category">
+    Click "Add New Category" button
+  </Step>
+  
+  <Step title="Enter Category Details">
+    - Category name
+    - Parent category (for subcategories)
+    - Level (0 for root categories)
+    - Category type (physical/digital)
+  </Step>
+  
+  <Step title="Set Featured Status">
+    Mark categories as featured for homepage display
+    
+    **Route**: POST `/admin/categories/featured`
+  </Step>
+</Steps>
+
+### Category Types
+
+**Route**: POST `/admin/categories/categoriesByType`
+
+Filter categories by:
+- Physical products (`digital = 0`)
+- Digital products (`digital = 1`)
+
+## Brand Management
+
+Manage product brands across the platform.
+
+**Routes**:
+- List brands: `/admin/brands`
+- Create: `/admin/brands/create`
+- Edit: `/admin/brands/edit/{id}`
+- Delete: `/admin/brands/destroy/{id}`
+
+## Bulk Operations
+
+### Bulk Product Upload
+
+Upload multiple products via CSV.
+
+<Steps>
+  <Step title="Download Template">
+    Get the CSV template: `/admin/product-csv-download/{type}`
+  </Step>
+  
+  <Step title="Fill Product Data">
+    Complete the CSV with product information
+  </Step>
+  
+  <Step title="Upload CSV">
+    Use the bulk upload interface at `/admin/product-bulk-upload/index`
+    
+    **Route**: POST `/admin/bulk-product-upload`
+  </Step>
+</Steps>
+
+### Bulk Product Delete
+
+<Steps>
+  <Step title="Select Products">
+    Check multiple products in the product list
+  </Step>
+  
+  <Step title="Execute Bulk Delete">
+    Click "Delete Selected" button
+    
+    **Route**: POST `/admin/bulk-product-delete`
+  </Step>
+  
+  <Step title="Confirm Deletion">
+    Confirm the action to permanently delete products
+  </Step>
+</Steps>
+
+<Tip>
+Download reference PDFs for bulk uploads:
+- Categories: `/admin/bulk-upload/download/category`
+- Brands: `/admin/bulk-upload/download/brand`
+- Sellers: `/admin/bulk-upload/download/seller`
+</Tip>
+
+## Product Attributes
+
+### Managing Attributes
+
+Create and manage product attributes (size, color, material, etc.).
+
+**Routes**:
+- List: `/admin/attributes`
+- Create: `/admin/attributes/create`
+- Edit: `/admin/attributes/edit/{id}`
+- Store attribute values: POST `/admin/store-attribute-value`
+
+### Color Management
+
+Manage color options for products.
+
+**Routes**:
+- View colors: `/admin/colors`
+- Add color: POST `/admin/colors/store`
+- Edit: `/admin/colors/edit/{id}`
+- Update: POST `/admin/colors/update/{id}`
+
+## Digital Products
+
+### Managing Digital Products
+
+<Steps>
+  <Step title="Access Digital Products">
+    Navigate to Digital Products section
+  </Step>
+  
+  <Step title="Upload Digital File">
+    Attach the downloadable file to the product
+  </Step>
+  
+  <Step title="Set Download Limits">
+    Configure download restrictions (if applicable)
+  </Step>
+  
+  <Step title="Download Product File">
+    Admins can download digital product files: `/admin/digitalproducts/download/{id}`
+  </Step>
+</Steps>
+
+## Product Duplication
+
+Quickly create similar products by duplicating existing ones.
+
+**Route**: `/admin/products/duplicate/{id}`
+
+<Note>
+Duplication copies all product details, stock configurations, and tax settings to the new product.
+</Note>
+
+## Related Sections
+
+- [Order Management](/admin/order-management)
+- [User Management](/admin/user-management)
+- [Business Settings](/admin/business-settings)

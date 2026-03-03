@@ -1,0 +1,316 @@
+---
+title: 'Products'
+description: 'Browse, search, and get product details'
+---
+
+## List All Products
+
+<api method="GET" endpoint="/api/v2/products" auth="none">
+  Get paginated list of all products
+</api>
+
+### Query Parameters
+
+<ParamField query="page" type="integer" default="1">
+  Page number
+</ParamField>
+
+### Example
+
+```bash
+curl https://your-domain.com/api/v2/products?page=1
+```
+
+## Get Product Details
+
+<api method="GET" endpoint="/api/v2/products/{id}" auth="none">
+  Get detailed information about a specific product
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Product ID
+</ParamField>
+
+### Example
+
+```bash
+curl https://your-domain.com/api/v2/products/123
+```
+
+## Search Products
+
+<api method="GET" endpoint="/api/v2/products/search" auth="none">
+  Search products with filters
+</api>
+
+### Query Parameters
+
+<ParamField query="name" type="string">
+  Product name or keywords to search
+</ParamField>
+
+<ParamField query="categories" type="string">
+  Comma-separated category IDs (e.g., "1,2,3")
+</ParamField>
+
+<ParamField query="brands" type="string">
+  Comma-separated brand IDs (e.g., "1,5,10")
+</ParamField>
+
+<ParamField query="min" type="number">
+  Minimum price
+</ParamField>
+
+<ParamField query="max" type="number">
+  Maximum price
+</ParamField>
+
+<ParamField query="sort_key" type="string">
+  Sort order: `price_low_to_high`, `price_high_to_low`, `new_arrival`, `popularity`, `top_rated`
+</ParamField>
+
+### Example
+
+```bash
+curl "https://your-domain.com/api/v2/products/search?name=laptop&min=500&max=2000&sort_key=price_low_to_high"
+```
+
+## Get Variant Price
+
+<api method="POST" endpoint="/api/v2/products/variant/price" auth="none">
+  Get price for specific product variant
+</api>
+
+### Request
+
+<ParamField body="id" type="integer" required>
+  Product ID
+</ParamField>
+
+<ParamField body="quantity" type="integer" default="1">
+  Quantity
+</ParamField>
+
+<ParamField body="color" type="string">
+  Color code (without #)
+</ParamField>
+
+<ParamField body="variants" type="string">
+  Comma-separated variant options
+</ParamField>
+
+### Response
+
+<ResponseField name="result" type="boolean">
+  Success status
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  <Expandable>
+    <ResponseField name="price" type="string">
+      Formatted price with quantity
+    </ResponseField>
+    <ResponseField name="stock" type="integer">
+      Available stock quantity
+    </ResponseField>
+    <ResponseField name="stock_txt" type="string">
+      Stock status text
+    </ResponseField>
+    <ResponseField name="variant" type="string">
+      Variant string
+    </ResponseField>
+    <ResponseField name="max_limit" type="integer">
+      Maximum order quantity
+    </ResponseField>
+    <ResponseField name="in_stock" type="integer">
+      In stock status (1 or 0)
+    </ResponseField>
+    <ResponseField name="image" type="string">
+      Variant image URL
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Products by Category
+
+<api method="GET" endpoint="/api/v2/products/category/{id}" auth="none">
+  Get products in a specific category
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Category ID
+</ParamField>
+
+<ParamField query="name" type="string">
+  Filter by product name
+</ParamField>
+
+## Products by Sub-Category
+
+<api method="GET" endpoint="/api/v2/products/sub-category/{id}" auth="none">
+  Get products in a sub-category
+</api>
+
+## Products by Sub-Sub-Category
+
+<api method="GET" endpoint="/api/v2/products/sub-sub-category/{id}" auth="none">
+  Get products in a sub-sub-category
+</api>
+
+## Products by Brand
+
+<api method="GET" endpoint="/api/v2/products/brand/{id}" auth="none">
+  Get products by brand
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Brand ID
+</ParamField>
+
+## Products by Seller
+
+<api method="GET" endpoint="/api/v2/products/seller/{id}" auth="none">
+  Get products from a specific seller
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Shop ID
+</ParamField>
+
+## Featured Products
+
+<api method="GET" endpoint="/api/v2/products/featured" auth="none">
+  Get featured products
+</api>
+
+## Best Sellers
+
+<api method="GET" endpoint="/api/v2/products/best-seller" auth="none">
+  Get best selling products (limited to 20)
+</api>
+
+## Today's Deals
+
+<api method="GET" endpoint="/api/v2/products/todays-deal" auth="none">
+  Get today's deal products (limited to 20)
+</api>
+
+## In-House Products
+
+<api method="GET" endpoint="/api/v2/products/inhouse" auth="none">
+  Get products added by admin
+</api>
+
+## Digital Products
+
+<api method="GET" endpoint="/api/v2/products/digital" auth="none">
+  Get digital products only
+</api>
+
+## Related Products
+
+<api method="GET" endpoint="/api/v2/products/related/{id}" auth="none">
+  Get related products (same category, limited to 10)
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Product ID
+</ParamField>
+
+## Top Products from Seller
+
+<api method="GET" endpoint="/api/v2/products/top-from-seller/{id}" auth="none">
+  Get top selling products from the same seller (limited to 10)
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Product ID
+</ParamField>
+
+## Featured Products from Seller
+
+<api method="GET" endpoint="/api/v2/products/featured-from-seller/{id}" auth="none">
+  Get featured products from a seller
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Seller ID
+</ParamField>
+
+## Product Reviews
+
+### Get Reviews
+
+<api method="GET" endpoint="/api/v2/reviews/product/{id}" auth="none">
+  Get reviews for a product
+</api>
+
+### Submit Review
+
+<api method="POST" endpoint="/api/v2/reviews/submit" auth="sanctum">
+  Submit a product review
+</api>
+
+<ParamField body="product_id" type="integer" required>
+  Product ID
+</ParamField>
+
+<ParamField body="rating" type="integer" required>
+  Rating (1-5)
+</ParamField>
+
+<ParamField body="comment" type="string" required>
+  Review comment
+</ParamField>
+
+## Classified Products
+
+### Get All Classified Products
+
+<api method="GET" endpoint="/api/v2/classified/all" auth="none">
+  Get all customer-listed classified products
+</api>
+
+### Get Classified Product Details
+
+<api method="GET" endpoint="/api/v2/classified/product-details/{id}" auth="none">
+  Get detailed information about a classified product
+</api>
+
+### Get Related Classified Products
+
+<api method="GET" endpoint="/api/v2/classified/related-products/{id}" auth="none">
+  Get related classified products
+</api>
+
+### Get Own Classified Products
+
+<api method="GET" endpoint="/api/v2/classified/own-products" auth="sanctum">
+  Get user's own classified products
+</api>
+
+### Delete Classified Product
+
+<api method="DELETE" endpoint="/api/v2/classified/delete/{id}" auth="sanctum">
+  Delete a classified product
+</api>
+
+### Change Classified Product Status
+
+<api method="POST" endpoint="/api/v2/classified/change-status/{id}" auth="sanctum">
+  Change status of a classified product
+</api>

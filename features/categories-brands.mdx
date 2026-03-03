@@ -1,0 +1,429 @@
+---
+title: Categories & Brands
+description: Hierarchical category structure and brand management for product organization
+---
+
+## Overview
+
+The Ecom platform provides a flexible categorization system with hierarchical categories and brand management to organize products effectively. Categories support nested structures, multi-language translations, and visual assets.
+
+<CardGroup cols={2}>
+  <Card title="Hierarchical Categories" icon="sitemap">
+    Unlimited nested category levels with parent-child relationships
+  </Card>
+  <Card title="Multi-Language Support" icon="language">
+    Category names and descriptions in multiple languages
+  </Card>
+  <Card title="Brand Management" icon="tag">
+    Organize products by brand with logo support
+  </Card>
+  <Card title="Visual Assets" icon="image">
+    Cover images, icons, and banners for categories
+  </Card>
+</CardGroup>
+
+## Category Model
+
+The `Category` model provides a hierarchical structure for organizing products.
+
+### Category Relationships
+
+<AccordionGroup>
+  <Accordion title="Parent-Child Structure">
+    Categories support unlimited nesting levels:
+
+    ```php
+    // Direct children
+    public function categories()
+    {
+        return $this->hasMany(Category::class, 'parent_id');
+    }
+
+    // Recursive children (nested)
+    public function childrenCategories()
+    {
+        return $this->hasMany(Category::class, 'parent_id')->with('categories');
+    }
+
+    // Parent category
+    public function parentCategory()
+    {
+        return $this->belongsTo(Category::class, 'parent_id');
+    }
+    ```
+
+    **Location:** `~/workspace/source/app/Models/Category.php:43-56`
+
+    This structure allows you to create deep category hierarchies like:
+    - Electronics
+      - Computers
+        - Laptops
+        - Desktops
+      - Mobile Phones
+        - Smartphones
+        - Feature Phones
+  </Accordion>
+
+  <Accordion title="Product Relationship">
+    Categories have a many-to-many relationship with products:
+
+    ```php
+    public function products()
+    {
+        return $this->belongsToMany(Product::class, 'product_categories');
+    }
+    ```
+
+    **Location:** `~/workspace/source/app/Models/Category.php:30-33`
+
+    This allows products to belong to multiple categories simultaneously, enabling flexible product organization and cross-category listings.
+  </Accordion>
+
+  <Accordion title="Visual Assets">
+    Categories support multiple image types for different display contexts:
+
+    ```php
+    public function coverImage()
+    {
+        return $this->belongsTo(Upload::class, 'cover_image');
+    }
+
+    public function catIcon()
+    {
+        return $this->belongsTo(Upload::class, 'icon');
+    }
+
+    public function bannerImage()
+    {
+        return $this->belongsTo(Upload::class, 'banner');
+    }
+    ```
+
+    **Location:** `~/workspace/source/app/Models/Category.php:22-37`
+
+    **Image Types:**
+    - **Cover Image**: Main category image for listings
+    - **Icon**: Small icon for navigation and menus
+    - **Banner**: Large banner for category landing pages
+  </Accordion>
+
+  <Accordion title="Attributes & Size Charts">
+    Categories can have associated attributes and size guides:
+
+    ```php
+    public function attributes()
+    {
+        return $this->belongsToMany(Attribute::class);
+    }
+
+    public function sizeChart()
+    {
+        return $this->belongsTo(SizeChart::class, 'id', 'category_id');
+    }
+    ```
+
+    **Location:** `~/workspace/source/app/Models/Category.php:58-66`
+
+    Attributes define product characteristics (like color, size, material) that vary by category.
+  </Accordion>
+</AccordionGroup>
+
+## Category Translations
+
+Categories support multi-language content through the `CategoryTranslation` model:
+
+```php
+public function getTranslation($field = '', $lang = false)
+{
+    $lang = $lang == false ? App::getLocale() : $lang;
+    $category_translation = $this->category_translations->where('lang', $lang)->first();
+    return $category_translation != null ? $category_translation->$field : $this->$field;
+}
+
+public function category_translations()
+{
+    return $this->hasMany(CategoryTranslation::class);
+}
+```
+
+**Location:** `~/workspace/source/app/Models/Category.php:12-20`
+
+### Eager Loading
+
+Category translations are automatically loaded to improve performance:
+
+```php
+protected $with = ['category_translations'];
+```
+
+**Location:** `~/workspace/source/app/Models/Category.php:10`
+
+### Usage Example
+
+```php
+// Get category name in current locale
+$categoryName = $category->getTranslation('name');
+
+// Get category name in specific language
+$categoryNameEs = $category->getTranslation('name', 'es');
+```
+
+## Brand Model
+
+The `Brand` model allows products to be organized by manufacturer or brand.
+
+### Brand Structure
+
+```php
+class Brand extends Model
+{
+    protected $with = ['brand_translations'];
+
+    public function getTranslation($field = '', $lang = false)
+    {
+        $lang = $lang == false ? App::getLocale() : $lang;
+        $brand_translation = $this->brand_translations->where('lang', $lang)->first();
+        return $brand_translation != null ? $brand_translation->$field : $this->$field;
+    }
+
+    public function brand_translations()
+    {
+        return $this->hasMany(BrandTranslation::class);
+    }
+
+    public function brandLogo()
+    {
+        return $this->belongsTo(Upload::class, 'logo');
+    }
+}
+```
+
+**Location:** `~/workspace/source/app/Models/Brand.php:8-29`
+
+### Brand Features
+
+<CardGroup cols={2}>
+  <Card title="Multi-Language Names" icon="language">
+    Brand names translated for different locales
+  </Card>
+  <Card title="Brand Logos" icon="image">
+    Upload and display brand logos
+  </Card>
+  <Card title="Product Association" icon="link">
+    Products linked to brands via relationship
+  </Card>
+  <Card title="Eager Loading" icon="bolt">
+    Translations automatically loaded for performance
+  </Card>
+</CardGroup>
+
+## Product-Category Association
+
+In the `ProductController`, categories are managed during product creation and updates.
+
+### Category Selection During Creation
+
+```php
+public function create()
+{
+    CoreComponentRepository::initializeCache();
+
+    $categories = Category::where('parent_id', 0)
+        ->where('digital', 0)
+        ->with('childrenCategories')
+        ->get();
+
+    return view('backend.product.products.create_wizard', compact('categories'));
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/ProductController.php:176-186`
+
+This loads only parent categories (where `parent_id = 0`) along with their nested children for physical products (`digital = 0`).
+
+### Attaching Categories to Products
+
+```php
+public function store(ProductRequest $request)
+{
+    $product = $this->productService->store($request->except([...]));
+    
+    // Product categories
+    $product->categories()->attach($request->category_ids);
+    
+    // ... rest of the method
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/ProductController.php:215`
+
+The `attach()` method creates records in the `product_categories` pivot table, allowing a product to belong to multiple categories.
+
+### Updating Category Association
+
+```php
+public function update(ProductRequest $request, Product $product)
+{
+    // ...
+    
+    // Product categories
+    if ($request->has('category_ids')) {
+        $product->categories()->sync($request->category_ids);
+    }
+    
+    // ...
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/ProductController.php:324-326`
+
+The `sync()` method updates the category associations, removing old ones and adding new ones as specified.
+
+## Category Types
+
+### Physical vs Digital
+
+Categories are separated by product type:
+
+```php
+$categories = Category::where('digital', 0)->get(); // Physical products
+$categories = Category::where('digital', 1)->get(); // Digital products
+```
+
+This ensures that digital products (like ebooks, software) have different category structures than physical products.
+
+### Classified Products
+
+Categories can also be used for classified ads:
+
+```php
+public function classified_products()
+{
+    return $this->hasMany(CustomerProduct::class);
+}
+```
+
+**Location:** `~/workspace/source/app/Models/Category.php:39-41`
+
+## Category Filtering in Products
+
+The `ProductController` uses categories for filtering during product editing:
+
+```php
+public function admin_product_edit(Request $request, $id)
+{
+    CoreComponentRepository::initializeCache();
+
+    $product = Product::findOrFail($id);
+    if ($product->digital == 1) {
+        return redirect('admin/digitalproducts/' . $id . '/edit');
+    }
+
+    $lang = $request->lang;
+    $tags = json_decode($product->tags);
+    $categories = Category::where('parent_id', 0)
+        ->where('digital', 0)
+        ->with('childrenCategories')
+        ->get();
+    return view('backend.product.products.edit', compact('product', 'categories', 'tags', 'lang'));
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/ProductController.php:265-281`
+
+## Brand-Product Filtering
+
+Products can be retrieved by brand:
+
+```php
+public function get_products_by_brand(Request $request)
+{
+    $products = Product::where('brand_id', $request->brand_id)->get();
+    return view('partials.product_select', compact('products'));
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/ProductController.php:467-471`
+
+## Implementation Examples
+
+<AccordionGroup>
+  <Accordion title="Loading Nested Categories">
+    ```php
+    // Get all parent categories with their children
+    $parentCategories = Category::where('parent_id', 0)
+        ->with('childrenCategories')
+        ->get();
+
+    // Access nested structure
+    foreach ($parentCategories as $parent) {
+        echo $parent->getTranslation('name');
+        
+        foreach ($parent->categories as $child) {
+            echo "  - " . $child->getTranslation('name');
+            
+            // Access grandchildren
+            foreach ($child->categories as $grandchild) {
+                echo "    - " . $grandchild->getTranslation('name');
+            }
+        }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Category with Products Count">
+    ```php
+    // Get categories with product counts
+    $categories = Category::withCount('products')->get();
+
+    foreach ($categories as $category) {
+        echo $category->getTranslation('name') . ": " . $category->products_count . " products";
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Brand with Logo">
+    ```php
+    // Get brand with logo
+    $brand = Brand::with('brandLogo')->find($brandId);
+
+    // Display brand name and logo
+    $brandName = $brand->getTranslation('name');
+    $logoUrl = $brand->brandLogo ? $brand->brandLogo->file_name : 'default-logo.png';
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Database Structure
+
+### Category Fields
+- `id` - Primary key
+- `parent_id` - Reference to parent category
+- `level` - Category hierarchy level
+- `name` - Default name
+- `slug` - URL-friendly identifier
+- `banner` - Banner image ID
+- `icon` - Icon image ID
+- `cover_image` - Cover image ID
+- `digital` - Physical (0) or Digital (1) category
+- `featured` - Featured category flag
+- `order` - Display order
+
+### Brand Fields
+- `id` - Primary key
+- `name` - Default brand name
+- `logo` - Logo image ID
+- `slug` - URL-friendly identifier
+- `meta_title` - SEO meta title
+- `meta_description` - SEO meta description
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Product Management" href="/features/products">
+    Learn how products use categories and brands
+  </Card>
+  <Card title="Multi-Language" href="/architecture/translations">
+    Understand the translation system
+  </Card>
+</CardGroup>

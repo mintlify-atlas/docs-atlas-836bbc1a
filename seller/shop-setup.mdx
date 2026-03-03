@@ -1,0 +1,323 @@
+---
+title: Shop Setup Guide
+description: Configure and customize your seller shop on Ecom
+---
+
+## Overview
+
+Your shop is your brand identity on the platform. A well-configured shop attracts customers and builds trust. This guide covers all aspects of shop configuration.
+
+## Accessing Shop Settings
+
+**Route**: `/seller/shop`
+
+<Steps>
+  <Step title="Navigate to Shop Settings">
+    From your seller dashboard, click "Shop Settings" or "My Shop"
+    
+    **Screenshot Description**: Seller dashboard menu with Shop Settings option highlighted
+  </Step>
+  
+  <Step title="View Current Configuration">
+    Review your existing shop information
+  </Step>
+  
+  <Step title="Edit Shop Details">
+    Update any section and save changes
+  </Step>
+</Steps>
+
+## Basic Shop Information
+
+### Shop Name and Identity
+
+<Steps>
+  <Step title="Enter Shop Name">
+    Choose a unique, memorable name for your shop
+  </Step>
+  
+  <Step title="Upload Shop Logo">
+    - Recommended size: 300x300px
+    - Format: PNG with transparent background preferred
+    - Maximum file size: 2MB
+  </Step>
+  
+  <Step title="Set Meta Information">
+    - **Meta Title**: SEO-friendly shop title (50-60 characters)
+    - **Meta Description**: Brief shop description for search engines (150-160 characters)
+  </Step>
+  
+  <Step title="Save Basic Information">
+    **Route**: POST `/seller/shop/update`
+  </Step>
+</Steps>
+
+<Note>
+Your shop slug (URL) is automatically generated from your shop name plus shop ID. Example: `my-shop-123`
+</Note>
+
+### Contact Information
+
+<Steps>
+  <Step title="Enter Business Address">
+    Provide your complete business address for customer confidence
+  </Step>
+  
+  <Step title="Add Phone Number">
+    Include a valid contact number for customer support
+  </Step>
+  
+  <Step title="Verify Contact Details">
+    Ensure all information is accurate before saving
+  </Step>
+</Steps>
+
+## Shipping Configuration
+
+### Flat Rate Shipping
+
+If you offer flat-rate shipping:
+
+<Steps>
+  <Step title="Enable Shipping Cost">
+    Check if shipping cost field is available in your shop settings
+  </Step>
+  
+  <Step title="Set Shipping Cost">
+    Enter your standard shipping charge
+  </Step>
+  
+  <Step title="Save Shipping Settings">
+    Update shop settings with shipping cost
+  </Step>
+</Steps>
+
+<Tip>
+Consider offering free shipping on orders above a certain amount to encourage larger purchases.
+</Tip>
+
+### Pickup Location
+
+If you offer local pickup:
+
+<Steps>
+  <Step title="Configure Pickup Location">
+    Navigate to the pickup location section
+  </Step>
+  
+  <Step title="Set Coordinates">
+    Enter latitude and longitude for your pickup location:
+    - `delivery_pickup_latitude`
+    - `delivery_pickup_longitude`
+  </Step>
+  
+  <Step title="Save Pickup Settings">
+    **Route**: POST `/seller/shop/update`
+  </Step>
+</Steps>
+
+## Social Media Integration
+
+Connect your social media profiles to build trust and increase reach.
+
+<Steps>
+  <Step title="Access Social Media Section">
+    Scroll to the social media links section in shop settings
+  </Step>
+  
+  <Step title="Add Social Profile URLs">
+    Enter complete URLs for:
+    - Facebook page
+    - Instagram profile
+    - Twitter account
+    - YouTube channel
+    - Google Business profile
+    
+    **Screenshot Description**: Social media integration form with input fields for each platform
+  </Step>
+  
+  <Step title="Save Social Links">
+    **Route**: POST `/seller/shop/update`
+  </Step>
+</Steps>
+
+<Note>
+Ensure URLs are complete including `https://`. Example: `https://facebook.com/yourshop`
+</Note>
+
+## Shop Banners and Branding
+
+### Banner Configuration
+
+Customize your shop page with promotional banners.
+
+<Steps>
+  <Step title="Upload Top Banner">
+    - Recommended size: 1920x400px
+    - Use for main promotions or branding
+  </Step>
+  
+  <Step title="Add Slider Images">
+    Upload multiple images for a rotating slider:
+    - Recommended size: 1920x500px
+    - Maximum 5 images recommended
+  </Step>
+  
+  <Step title="Configure Full-Width Banner 1">
+    Add a full-width promotional banner
+    - Size: 1920x300px
+  </Step>
+  
+  <Step title="Add Half-Width Banners">
+    Upload two side-by-side banners:
+    - Size: 960x300px each
+  </Step>
+  
+  <Step title="Configure Full-Width Banner 2">
+    Add a second full-width banner at the bottom
+    - Size: 1920x300px
+  </Step>
+  
+  <Step title="Save Banner Configuration">
+    **Route**: POST `/seller/shop/update`
+  </Step>
+</Steps>
+
+<Tip>
+Banner Design Tips:
+- Use high-quality images
+- Include clear call-to-action text
+- Maintain consistent branding
+- Update seasonally for promotions
+- Optimize file sizes for fast loading
+</Tip>
+
+## Shop Verification
+
+Increase customer trust by getting your shop verified.
+
+### Applying for Verification
+
+<Steps>
+  <Step title="Check Verification Status">
+    In your shop settings, check if verification is available
+  </Step>
+  
+  <Step title="Access Verification Form">
+    Navigate to "Apply for Verification"
+    
+    **Route**: `/seller/shop/apply-for-verification`
+    
+    **Screenshot Description**: Verification application form with document upload sections
+  </Step>
+  
+  <Step title="Complete Verification Form">
+    Fill out all required fields based on the platform's verification requirements:
+    - Text fields for business information
+    - Select options for business type
+    - File uploads for documents
+  </Step>
+  
+  <Step title="Upload Required Documents">
+    Attach necessary verification documents
+  </Step>
+  
+  <Step title="Submit Application">
+    **Route**: POST `/seller/shop/verification_info_store`
+  </Step>
+  
+  <Step title="Await Admin Review">
+    You and the admin will receive notifications about the submission
+  </Step>
+</Steps>
+
+<Note>
+You can only submit one verification request at a time. If rejected, your verification info will be cleared and you can reapply.
+</Note>
+
+## Shop URL and SEO
+
+### Shop Slug
+
+Your shop URL is automatically generated:
+- Format: `{shop-name}-{shop-id}`
+- Example: `best-electronics-42`
+- Updates automatically when you change shop name
+
+### SEO Optimization
+
+<Steps>
+  <Step title="Optimize Meta Title">
+    Create a descriptive, keyword-rich title:
+    - Include your shop name
+    - Add primary product category
+    - Keep under 60 characters
+  </Step>
+  
+  <Step title="Write Meta Description">
+    Craft a compelling description:
+    - Summarize what you sell
+    - Include key benefits
+    - Add location if relevant
+    - Stay within 160 characters
+  </Step>
+</Steps>
+
+## Success Confirmation
+
+After updating shop settings:
+
+- **Success message**: "Your Shop has been updated successfully!"
+- **Error message**: "Sorry! Something went wrong."
+
+<Tip>
+Regularly update your shop information to:
+- Reflect new product categories
+- Update seasonal promotions
+- Keep contact information current
+- Refresh banner images
+</Tip>
+
+## Best Practices
+
+### Visual Branding
+1. Use consistent colors across all banners
+2. Ensure logo is clear and recognizable
+3. Optimize images for web (compress without quality loss)
+4. Use professional photography
+
+### Information Accuracy
+1. Keep contact details current
+2. Update business hours if applicable
+3. Maintain accurate shipping information
+4. Review and update descriptions quarterly
+
+### Customer Trust
+1. Complete all sections of your profile
+2. Add social media links
+3. Apply for shop verification
+4. Respond to customer inquiries promptly
+5. Maintain high product quality
+
+## Troubleshooting
+
+### Common Issues
+
+**Q: My shop slug looks strange**  
+A: The slug is auto-generated from your shop name. Choose a clean shop name without special characters.
+
+**Q: Banner images aren't displaying correctly**  
+A: Ensure images meet the recommended dimensions and are in JPG or PNG format.
+
+**Q: I can't find the verification option**  
+A: Verification may be disabled or you may have already submitted a request.
+
+**Q: Changes aren't saving**  
+A: Check that all required fields are filled and try clearing your browser cache.
+
+## Related Sections
+
+- [Getting Started](/seller/getting-started)
+- [Adding Products](/seller/adding-products)
+- [Managing Orders](/seller/managing-orders)
+- [Payments and Withdrawals](/seller/payments-withdrawals)

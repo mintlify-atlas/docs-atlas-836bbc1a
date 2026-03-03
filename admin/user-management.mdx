@@ -1,0 +1,361 @@
+---
+title: User Management
+description: Manage customers, sellers, and staff users across your e-commerce platform
+---
+
+## Overview
+
+The user management system allows administrators to manage all platform users including customers, sellers, staff members, and their associated permissions and activities.
+
+## Customer Management
+
+### Viewing Customers
+
+Access the complete list of verified customers.
+
+**Route**: `/admin/customers`
+
+<Steps>
+  <Step title="Navigate to Customers">
+    Go to Users > Customers from the admin menu
+    
+    **Screenshot Description**: Admin menu with Users dropdown expanded showing Customers option
+  </Step>
+  
+  <Step title="Search Customers">
+    Use the search bar to find customers by:
+    - Name
+    - Email address
+  </Step>
+  
+  <Step title="View Customer Details">
+    Click on a customer to view their complete profile and order history
+  </Step>
+</Steps>
+
+### Creating Customers
+
+Manually add new customers to the platform.
+
+<Steps>
+  <Step title="Access Customer Creation">
+    Click "Add New Customer" button
+  </Step>
+  
+  <Step title="Enter Customer Information">
+    Fill in required fields:
+    - Full name (required)
+    - Email address (required, must be unique)
+    - Phone number (required, must be unique)
+    
+    **Route**: POST `/admin/customers/store`
+  </Step>
+  
+  <Step title="Save Customer">
+    Click "Save" to create the customer account
+  </Step>
+</Steps>
+
+<Note>
+Customers created through the admin panel are automatically verified and can immediately place orders.
+</Note>
+
+### Banning Customers
+
+Restrict customer access when necessary.
+
+<Steps>
+  <Step title="Locate Customer">
+    Find the customer in the customer list
+  </Step>
+  
+  <Step title="Toggle Ban Status">
+    Click the ban/unban button
+    
+    **Route**: `/admin/customers_ban/{customer}`
+  </Step>
+  
+  <Step title="Confirm Action">
+    - Success message: "Customer Banned Successfully"
+    - To unban: "Customer UnBanned Successfully"
+  </Step>
+</Steps>
+
+<Tip>
+Banned customers cannot:
+- Log into their accounts
+- Place new orders
+- Access their dashboard
+
+Their existing data remains in the system.
+</Tip>
+
+### Logging in as Customer
+
+View the platform from a customer's perspective.
+
+<Steps>
+  <Step title="Select Customer">
+    From the customer list, locate the customer account
+  </Step>
+  
+  <Step title="Click Login Button">
+    Click "Login as Customer"
+    
+    **Route**: `/admin/customers/login/{id}`
+  </Step>
+  
+  <Step title="Access Customer Dashboard">
+    You'll be logged in as that customer and redirected to their dashboard
+  </Step>
+</Steps>
+
+<Note>
+This feature is useful for:
+- Troubleshooting customer issues
+- Verifying customer experience
+- Placing test orders
+
+Always log out and return to your admin account after testing.
+</Note>
+
+### Deleting Customers
+
+<Steps>
+  <Step title="Select Customer(s)">
+    Choose customers to delete from the list
+  </Step>
+  
+  <Step title="Execute Delete">
+    - Single delete: Click delete icon for individual customer
+    - Bulk delete: Select multiple and use bulk action
+    
+    **Routes**:
+    - Single: `/admin/customers/destroy/{id}`
+    - Bulk: POST `/admin/bulk-customer-delete`
+  </Step>
+  
+  <Step title="Confirm Deletion">
+    Confirm to permanently remove customer data
+  </Step>
+</Steps>
+
+## Seller Management
+
+### Viewing Sellers
+
+Access all registered sellers on the platform.
+
+**Route**: `/admin/sellers`
+
+### Seller Verification
+
+Review and approve seller verification requests.
+
+<Steps>
+  <Step title="View Verification Requests">
+    Navigate to Sellers > Verification Requests
+  </Step>
+  
+  <Step title="Review Submitted Documents">
+    Click on a pending request to view:
+    - Business information
+    - Verification documents
+    - Submitted form data
+    
+    **Route**: `/admin/sellers/view/{id}/verification`
+    
+    **Screenshot Description**: Seller verification form showing uploaded documents and business details
+  </Step>
+  
+  <Step title="Approve or Reject">
+    - To approve: Click "Approve Seller"
+      **Route**: `/admin/sellers/approve/{id}`
+    
+    - To reject: Click "Reject Request"
+      **Route**: `/admin/sellers/reject/{id}`
+  </Step>
+</Steps>
+
+### Managing Seller Status
+
+<Steps>
+  <Step title="Access Seller Profile">
+    Click on a seller from the seller list
+  </Step>
+  
+  <Step title="Update Approval Status">
+    Toggle seller approval status to enable/disable their ability to sell
+    
+    **Route**: POST `/admin/sellers/approved`
+  </Step>
+  
+  <Step title="Ban/Unban Seller">
+    Restrict seller access if needed
+    
+    **Route**: `/admin/sellers_ban/{id}`
+  </Step>
+</Steps>
+
+### Seller Payment History
+
+Track payments made to sellers.
+
+<Steps>
+  <Step title="Navigate to Payments">
+    Go to Sellers > Payment History
+    
+    **Route**: `/admin/seller/payments`
+  </Step>
+  
+  <Step title="View Payment Details">
+    Click on a payment to see full transaction details
+    
+    **Route**: `/admin/seller/payments/show/{id}`
+  </Step>
+</Steps>
+
+### Seller Withdraw Requests
+
+Manage seller withdrawal requests.
+
+<Steps>
+  <Step title="Access Withdraw Requests">
+    Navigate to Sellers > Withdraw Requests
+    
+    **Route**: `/admin/withdraw_requests_all`
+  </Step>
+  
+  <Step title="Review Request">
+    Click on a request to view:
+    - Requested amount
+    - Seller's available balance
+    - Payment method preferences
+  </Step>
+  
+  <Step title="Process Payment">
+    Open the payment modal and process the withdrawal
+    
+    **Route**: POST `/admin/withdraw_request/payment_modal`
+  </Step>
+</Steps>
+
+### Logging in as Seller
+
+Access the seller panel as a specific seller.
+
+**Route**: `/admin/sellers/login/{id}`
+
+<Tip>
+Use this to:
+- Help sellers with technical issues
+- Verify seller panel functionality
+- Train new sellers
+</Tip>
+
+### Bulk Seller Operations
+
+Delete multiple sellers simultaneously.
+
+**Route**: POST `/admin/bulk-seller-delete`
+
+## Staff Management
+
+### Creating Staff Accounts
+
+<Steps>
+  <Step title="Access Staff Section">
+    Navigate to Users > Staff
+    
+    **Route**: `/admin/staffs`
+  </Step>
+  
+  <Step title="Add New Staff">
+    Click "Add New Staff Member"
+  </Step>
+  
+  <Step title="Assign Role">
+    Select a role with appropriate permissions
+  </Step>
+  
+  <Step title="Enter Staff Details">
+    Fill in name, email, and password
+  </Step>
+  
+  <Step title="Save Staff Account">
+    Create the account with assigned permissions
+  </Step>
+</Steps>
+
+### Role Management
+
+Define roles and permissions for staff members.
+
+<Steps>
+  <Step title="Navigate to Roles">
+    Go to Users > Roles
+    
+    **Route**: `/admin/roles`
+  </Step>
+  
+  <Step title="Create New Role">
+    Click "Add New Role" and enter role name
+  </Step>
+  
+  <Step title="Assign Permissions">
+    Select permissions for this role from available options:
+    - View all customers
+    - Login as customer
+    - Ban customer
+    - Delete customer
+    - Seller commission configuration
+    - Product management
+    - Order management
+    - And many more...
+    
+    **Route**: POST `/admin/roles/add_permission`
+    
+    **Screenshot Description**: Permission assignment interface showing categorized permission checkboxes
+  </Step>
+  
+  <Step title="Save Role">
+    Save the role with selected permissions
+  </Step>
+</Steps>
+
+## User Permissions
+
+Key permission categories:
+
+### Customer Permissions
+- `view_all_customers`: View customer list
+- `login_as_customer`: Access customer accounts
+- `ban_customer`: Ban/unban customers
+- `delete_customer`: Remove customer accounts
+
+### Seller Permissions
+- `seller_commission_configuration`: Manage commission rates
+- `seller_verification_form_configuration`: Configure verification requirements
+- `pay_to_affiliate_user`: Process affiliate payments
+- `view_affiliate_users`: Access affiliate user list
+
+### General Settings Permissions
+- `general_settings`: Access general configuration
+- `features_activation`: Enable/disable platform features
+- `smtp_settings`: Configure email settings
+- `payment_methods_configurations`: Manage payment gateways
+- `order_configuration`: Configure order settings
+
+## Best Practices
+
+1. **Regular Audits**: Review user accounts regularly
+2. **Permission Management**: Grant minimum necessary permissions to staff
+3. **Verification**: Always verify seller documents thoroughly
+4. **Customer Support**: Use "login as customer" to troubleshoot issues
+5. **Secure Deletion**: Backup data before bulk deletions
+
+## Related Sections
+
+- [Order Management](/admin/order-management)
+- [Product Management](/admin/product-management)
+- [Business Settings](/admin/business-settings)

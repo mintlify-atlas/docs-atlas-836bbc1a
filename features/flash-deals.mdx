@@ -1,0 +1,241 @@
+---
+title: Flash Deals
+description: Create time-limited promotional deals with countdown timers and special pricing
+---
+
+## Overview
+
+The Flash Deals feature allows you to create time-limited promotional offers that appear on your homepage with countdown timers. Flash deals can showcase products with special discounts, creating urgency and driving sales.
+
+<Note>
+Flash deals support multi-language translations and can be featured prominently on your homepage with custom styling.
+</Note>
+
+## Database Structure
+
+### FlashDeal Model
+
+Location: `app/Models/FlashDeal.php:1`
+
+**Relationships:**
+- `flash_deal_translations()` - HasMany relationship for multi-language support (app/Models/FlashDeal.php:18)
+- `flash_deal_products()` - HasMany relationship with products (app/Models/FlashDeal.php:22)
+
+**Key Fields:**
+- `title` - Flash deal name
+- `start_date` - Unix timestamp for deal start
+- `end_date` - Unix timestamp for deal expiration
+- `background_color` - Custom background color
+- `text_color` - Custom text color
+- `banner` - Banner image path
+- `status` - Active (1) or Inactive (0)
+- `featured` - Display on homepage (1) or not (0)
+- `slug` - URL-friendly identifier
+
+### FlashDealProduct Model
+
+Location: `app/Models/FlashDealProduct.php:1`
+
+**Fillable Fields:**
+- `flash_deal_id` - Reference to flash deal
+- `product_id` - Reference to product
+
+**Relationships:**
+- `product()` - BelongsTo relationship (app/Models/FlashDealProduct.php:11)
+
+## Creating Flash Deals
+
+<Steps>
+  <Step title="Navigate to Flash Deals">
+    Go to Admin Dashboard → Marketing → Flash Deals
+  </Step>
+  
+  <Step title="Create New Deal">
+    Click "Add New Flash Deal" and fill in the required information:
+    - Title
+    - Date Range (Start/End dates)
+    - Background Color
+    - Text Color
+    - Banner image (optional)
+  </Step>
+  
+  <Step title="Add Products">
+    Select products to include in the flash deal. For each product:
+    - Choose the discount amount
+    - Select discount type (percentage or fixed amount)
+    
+    The system automatically applies discount dates to products (app/Http/Controllers/FlashDealController.php:76-81)
+  </Step>
+  
+  <Step title="Set as Featured">
+    Check the "Featured" checkbox to display the deal on your homepage
+    
+    <Warning>
+    Only one flash deal can be featured at a time. Setting a new deal as featured will automatically unfeature the previous one (app/Http/Controllers/FlashDealController.php:209-212).
+    </Warning>
+  </Step>
+  
+  <Step title="Save and Activate">
+    Save the flash deal and ensure the status is set to Active
+  </Step>
+</Steps>
+
+## Display Requirements
+
+For a flash deal to appear on the homepage, it must meet ALL of these conditions:
+
+- `status = 1` (Active)
+- `featured = 1` (Featured)
+- `start_date ≤ current time` (Already started)
+- `end_date ≥ current time` (Not expired)
+- At least one product in `flash_deal_products` table
+
+The system uses the `isActiveAndFeatured` scope for filtering (app/Models/FlashDeal.php:27-31):
+
+```php
+public function scopeIsActiveAndFeatured($query)
+{
+    return $query->where('status', '1')
+        ->where('featured', '1');
+}
+```
+
+## Frontend Features
+
+### Display Components
+
+The flash deals card includes:
+
+- **Product carousel** with navigation buttons
+- **Price display** with discount percentage badges
+- **Countdown timer** showing Days, Hours, Minutes, Seconds
+- **Product ratings** from database
+- **Custom styling** with configurable colors
+
+### Helper Functions
+
+Location: `app/Http/Helpers.php`
+
+**get_featured_flash_deal()**
+- Retrieves the currently active featured flash deal
+
+**get_flash_deal_products($flash_deal_id)**
+- Gets all products associated with a specific flash deal
+
+## Permissions
+
+The following permissions control access to flash deal features (app/Http/Controllers/FlashDealController.php:14-21):
+
+- `view_all_flash_deals` - View flash deals list
+- `add_flash_deal` - Create new flash deals
+- `edit_flash_deal` - Modify existing flash deals
+- `delete_flash_deal` - Remove flash deals
+- `publish_flash_deal` - Toggle featured status
+
+## API Endpoints
+
+### List Flash Deals
+
+```php
+GET /admin/flash-deals
+```
+
+Supports search by title (app/Http/Controllers/FlashDealController.php:32-36).
+
+### Update Status
+
+```php
+POST /admin/flash-deals/update-status
+```
+
+Toggles the active/inactive status (app/Http/Controllers/FlashDealController.php:196-205).
+
+### Update Featured
+
+```php
+POST /admin/flash-deals/update-featured
+```
+
+Sets a flash deal as featured and unfeatures all others (app/Http/Controllers/FlashDealController.php:207-220).
+
+## Customization
+
+### Styling
+
+Default brand colors:
+- Product names: `#0961b3` (blue)
+- Prices: `#a90000` (red)
+- Stars: `#ffc107` (gold)
+- Discount badge: `#e74c3c` (red background)
+
+### Translation Support
+
+Flash deals support multi-language content through the `FlashDealTranslation` model:
+
+```php
+public function getTranslation($field = '', $lang = false){
+    $lang = $lang == false ? App::getLocale() : $lang;
+    $flash_deal_translation = $this->flash_deal_translations
+        ->where('lang', $lang)->first();
+    return $flash_deal_translation != null ? 
+        $flash_deal_translation->$field : $this->$field;
+}
+```
+
+## Troubleshooting
+
+### Flash Deal Not Showing
+
+<Steps>
+  <Step title="Verify Flash Deal Exists">
+    Check Admin → Marketing → Flash Deals to ensure the deal exists
+  </Step>
+  
+  <Step title="Check Featured Status">
+    Confirm the "Featured" checkbox is enabled
+  </Step>
+  
+  <Step title="Validate Dates">
+    Ensure current date/time falls within the deal's start and end dates
+  </Step>
+  
+  <Step title="Confirm Products">
+    Verify that products are assigned to the flash deal
+  </Step>
+  
+  <Step title="Clear Cache">
+    Run `php artisan view:clear` to clear cached views
+  </Step>
+</Steps>
+
+### Products Not Displaying
+
+1. Check products exist in junction table:
+   ```sql
+   SELECT * FROM flash_deal_products WHERE flash_deal_id = [ID];
+   ```
+
+2. Verify products are published and accessible
+
+3. Check browser console for JavaScript errors
+
+4. Confirm discount type is set correctly in the product record
+
+## Testing
+
+You can create a test flash deal using the artisan command:
+
+```bash
+php artisan setup:flash-deal
+```
+
+<Warning>
+This command is for testing only and creates sample data. Use the admin panel for production flash deals.
+</Warning>
+
+To remove test data:
+
+```sql
+DELETE FROM flash_deal_products WHERE flash_deal_id = 2;
+DELETE FROM flash_deals WHERE id = 2;
+```

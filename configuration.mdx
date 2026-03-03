@@ -1,0 +1,304 @@
+---
+title: Configuration
+description: Configure your Ecom e-commerce platform settings
+---
+
+## Application Configuration
+
+Ecom uses Laravel's configuration system with environment-based settings. All core configuration files are located in the `config/` directory.
+
+## Core Configuration Files
+
+### Application Settings (config/app.php)
+
+The main application configuration is in `config/app.php:16`:
+
+```php
+'name' => env('APP_NAME', 'Laravel'),
+'env' => env('APP_ENV', 'production'),
+'debug' => env('APP_DEBUG', false),
+'url' => env('APP_URL', 'http://localhost'),
+'timezone' => env('APP_TIMEZONE', 'UTC'),
+'locale' => env('DEFAULT_LANGUAGE', 'en'),
+```
+
+<Info>
+All these values can be overridden in your `.env` file without modifying the configuration files directly.
+</Info>
+
+### Key Configuration Options
+
+<AccordionGroup>
+  <Accordion title="Application Name" icon="tag">
+    Set your application name:
+    ```bash .env
+    APP_NAME="Your Store Name"
+    ```
+    
+    Used in email notifications, page titles, and branding.
+  </Accordion>
+
+  <Accordion title="Environment & Debug Mode" icon="bug">
+    ```bash .env
+    APP_ENV=production
+    APP_DEBUG=false
+    ```
+    
+    <Warning>
+    **Never enable `APP_DEBUG=true` in production!** It exposes sensitive information like database credentials and application secrets.
+    </Warning>
+    
+    Available environments:
+    - `local` - Development environment
+    - `staging` - Testing environment
+    - `production` - Live environment
+  </Accordion>
+
+  <Accordion title="Application URL" icon="link">
+    ```bash .env
+    APP_URL=https://yourdomain.com
+    ```
+    
+    Used for generating absolute URLs in emails and API responses.
+  </Accordion>
+
+  <Accordion title="Timezone Configuration" icon="clock">
+    ```bash .env
+    APP_TIMEZONE="UTC"
+    # Or set to your local timezone
+    APP_TIMEZONE="America/New_York"
+    APP_TIMEZONE="Asia/Kolkata"
+    ```
+    
+    Configured in `config/app.php:90`
+  </Accordion>
+
+  <Accordion title="Language & Localization" icon="globe">
+    ```bash .env
+    DEFAULT_LANGUAGE=en
+    ```
+    
+    The application locale is configured in `config/app.php:103`:
+    ```php
+    'locale' => env('DEFAULT_LANGUAGE', 'en'),
+    'fallback_locale' => 'en',
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Security Configuration
+
+### Encryption Settings
+
+Ecom uses AES-256-CBC encryption (defined in `config/app.php:131`):
+
+```php
+'key' => env('APP_KEY'),
+'cipher' => 'AES-256-CBC',
+'system_key' => env('SYSTEM_KEY'),
+```
+
+<Warning>
+**Security Best Practices:**
+- Never share your `APP_KEY`
+- Generate a unique key for each environment
+- Keep `SYSTEM_KEY` secure and private
+</Warning>
+
+### Debug Blacklist
+
+Sensitive data is automatically hidden from debug output (`config/app.php:44`):
+
+```php
+'debug_blacklist' => [
+    '_ENV' => [
+        'APP_KEY',
+        'DB_PASSWORD',
+        'REDIS_PASSWORD',
+        'MAIL_PASSWORD',
+        'PUSHER_APP_KEY',
+        'PUSHER_APP_SECRET',
+    ],
+],
+```
+
+## Caching & Performance
+
+### Cache Configuration
+
+Configure cache driver in your `.env`:
+
+```bash .env
+CACHE_DRIVER=file
+# Or use Redis for better performance
+CACHE_DRIVER=redis
+```
+
+Available cache drivers:
+- `file` - File-based caching (default)
+- `redis` - Redis cache (recommended for production)
+- `memcached` - Memcached
+- `database` - Database caching
+- `array` - In-memory (testing only)
+
+### Queue Configuration
+
+Configure queue connection:
+
+```bash .env
+QUEUE_CONNECTION=sync
+# For production, use:
+QUEUE_CONNECTION=redis
+# Or:
+QUEUE_CONNECTION=database
+```
+
+<Note>
+Using `redis` or `database` queue drivers requires running queue workers:
+```bash
+php artisan queue:work
+```
+</Note>
+
+### Session Configuration
+
+```bash .env
+SESSION_DRIVER=file
+SESSION_LIFETIME=120
+```
+
+Session drivers:
+- `file` - File-based sessions
+- `cookie` - Cookie-based sessions
+- `database` - Database sessions
+- `redis` - Redis sessions (recommended for production)
+
+## Logging Configuration
+
+Configure logging channel:
+
+```bash .env
+LOG_CHANNEL=stack
+```
+
+Logs are stored in `storage/logs/laravel.log`
+
+## Service Providers
+
+Ecom includes several pre-configured service providers (`config/app.php:146`):
+
+```php
+'providers' => [
+    // Laravel Framework Providers
+    Illuminate\Auth\AuthServiceProvider::class,
+    Illuminate\Database\DatabaseServiceProvider::class,
+    // ... more providers
+    
+    // Package Providers
+    KingFlamez\Rave\RaveServiceProvider::class,
+    Spatie\Permission\PermissionServiceProvider::class,
+    
+    // Application Providers
+    App\Providers\AppServiceProvider::class,
+    App\Providers\AuthServiceProvider::class,
+    App\Providers\EventServiceProvider::class,
+    App\Providers\RouteServiceProvider::class,
+    App\Providers\ComposerServiceProvider::class,
+],
+```
+
+## Broadcasting Configuration
+
+```bash .env
+BROADCAST_DRIVER=log
+# For production with Pusher:
+BROADCAST_DRIVER=pusher
+PUSHER_APP_ID=your_app_id
+PUSHER_APP_KEY=your_app_key
+PUSHER_APP_SECRET=your_app_secret
+PUSHER_APP_CLUSTER=mt1
+```
+
+## Optimization Commands
+
+After making configuration changes, optimize your application:
+
+<CodeGroup>
+```bash Clear All Caches
+php artisan optimize:clear
+```
+
+```bash Cache Configuration
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+```bash Clear Specific Caches
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+php artisan cache:clear
+```
+</CodeGroup>
+
+<Warning>
+**Production Optimization:**
+Always run these commands after deployment:
+```bash
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+</Warning>
+
+## Custom Configuration
+
+You can add custom configuration files in the `config/` directory. Current custom configurations include:
+
+- `flutterwave.php` - Flutterwave payment gateway
+- `paystack.php` - PayStack payment configuration
+- `mercadopago.php` - MercadoPago settings
+- `nagad.php` - Nagad payment gateway
+- `laravel-payku.php` - PayKu integration
+- `image.php` - Image processing settings
+
+## Autoloading Configuration
+
+Custom autoloading is configured in `composer.json:59`:
+
+```json
+"autoload": {
+    "classmap": [
+        "database/seeds",
+        "database/factories"
+    ],
+    "psr-4": {
+        "App\\": "app/"
+    },
+    "files": ["app/Http/Helpers.php"]
+},
+```
+
+After modifying autoload configuration, run:
+
+```bash
+composer dump-autoload
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Setup" icon="server" href="/setup/environment">
+    Detailed environment variable configuration
+  </Card>
+  <Card title="Database Setup" icon="database" href="/setup/database">
+    Database configuration and migrations
+  </Card>
+  <Card title="Mail Configuration" icon="envelope" href="/configuration#mail-configuration">
+    Set up email services
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/setup/deployment">
+    Deploy to production
+  </Card>
+</CardGroup>

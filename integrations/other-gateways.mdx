@@ -1,0 +1,523 @@
+---
+title: 'Other Payment Gateways'
+description: 'Additional payment gateway integrations available in Ecom'
+icon: 'credit-card'
+---
+
+## Overview
+
+Beyond the primary payment gateways, Ecom supports numerous regional and specialized payment processors. Each gateway is optimized for specific regions and use cases.
+
+## Available Gateways
+
+### Paystack (Africa)
+
+Popular payment gateway for African markets, especially Nigeria, Ghana, and South Africa.
+
+#### Configuration
+
+```bash .env
+PAYSTACK_PUBLIC_KEY=pk_...
+PAYSTACK_SECRET_KEY=sk_...
+PAYSTACK_CURRENCY_CODE=NGN
+```
+
+#### Controller Location
+
+```
+app/Http/Controllers/Payment/PaystackController.php
+```
+
+#### Implementation Highlights
+
+```php app/Http/Controllers/Payment/PaystackController.php
+public function pay(Request $request)
+{
+    $post_data = array();
+    $post_data['payment_type'] = Session::get('payment_type');
+
+    if (Session::get('payment_type') == 'cart_payment') {
+        $combined_order = CombinedOrder::findOrFail(Session::get('combined_order_id'));
+        $user = Auth::user();
+        
+        $request->email = $user->email;
+        $request->amount = round($combined_order->grand_total * 100);
+        $request->currency = env('PAYSTACK_CURRENCY_CODE', 'NGN');
+        $request->metadata = json_encode($array);
+        $request->reference = Paystack::genTranxRef();
+        
+        return Paystack::getAuthorizationUrl()->redirectNow();
+    }
+}
+```
+
+#### Supported Currencies
+
+- NGN (Nigerian Naira)
+- GHS (Ghanaian Cedi)
+- ZAR (South African Rand)
+- USD (US Dollar)
+
+#### Dependencies
+
+```json composer.json
+"unicodeveloper/laravel-paystack": "^1.0"
+```
+
+### Instamojo (India)
+
+Indian payment gateway supporting UPI, cards, wallets, and net banking.
+
+#### Configuration
+
+```bash .env
+IM_API_KEY=...
+IM_AUTH_TOKEN=...
+```
+
+#### Controller Location
+
+```
+app/Http/Controllers/Payment/InstamojoController.php
+```
+
+#### Implementation Highlights
+
+```php app/Http/Controllers/Payment/InstamojoController.php
+public function pay()
+{
+    if (BusinessSetting::where('type', 'instamojo_sandbox')->first()->value == 1) {
+        $endPoint = 'https://test.instamojo.com/api/1.1/';
+    } else {
+        $endPoint = 'https://www.instamojo.com/api/1.1/';
+    }
+
+    $api = new \Instamojo\Instamojo(
+        env('IM_API_KEY'),
+        env('IM_AUTH_TOKEN'),
+        $endPoint
+    );
+
+    if (Session::get('payment_type') == 'cart_payment') {
+        $combined_order = CombinedOrder::findOrFail(Session::get('combined_order_id'));
+        
+        $response = $api->paymentRequestCreate(array(
+            "purpose" => ucfirst(str_replace('_', ' ', Session::get('payment_type'))),
+            "amount" => round($combined_order->grand_total),
+            "send_email" => false,
+            "email" => Auth::user()->email,
+            "phone" => Auth::user()->phone,
+            "redirect_url" => url('instamojo/payment/pay-success')
+        ));
+        
+        return redirect($response['longurl']);
+    }
+}
+```
+
+#### Phone Validation
+
+<Warning>
+  Instamojo requires valid Indian phone numbers:
+  
+  ```php
+  if (preg_match_all('/^(?:(?:\+|0{0,2})91(\s*[\ -]\s*)?|[0]?)?[789]\d{9}|(\d[ -]?)\{10}\d$/im', Auth::user()->phone)) {
+      // Process payment
+  } else {
+      flash(translate('Please add phone number to your profile'))->warning();
+      return redirect()->route('profile');
+  }
+  ```
+</Warning>
+
+#### Dependencies
+
+```json composer.json
+"instamojo/instamojo-php": "^0.4.0"
+```
+
+### Authorize.Net (USA)
+
+Established payment gateway for North American markets.
+
+#### Configuration
+
+```bash .env
+AUTHORIZE_NET_LOGIN_ID=...
+AUTHORIZE_NET_TRANSACTION_KEY=...
+AUTHORIZE_NET_SANDBOX=true
+```
+
+#### Controller Location
+
+```
+app/Http/Controllers/Payment/AuthorizenetController.php
+```
+
+#### Dependencies
+
+```json composer.json
+"authorizenet/authorizenet": "^2.0"
+```
+
+### Iyzico (Turkey)
+
+Turkish payment gateway supporting local payment methods.
+
+#### Controller Location
+
+```
+app/Http/Controllers/Payment/IyzicoController.php
+```
+
+#### Dependencies
+
+```json composer.json
+"iyzico/iyzipay-php": "^2.0"
+```
+
+### Mercadopago (Latin America)
+
+Leading payment platform for Latin American markets.
+
+#### Controller Location
+
+```
+app/Http/Controllers/Payment/MercadopagoController.php
+```
+
+#### Dependencies
+
+```json composer.json
+"mercadopago/dx-php": "^2.5"
+```
+
+### Nagad (Bangladesh)
+
+Bangladeshi mobile financial service.
+
+#### Controller Location
+
+```
+app/Http/Controllers/Payment/NagadController.php
+```
+
+### bKash (Bangladesh)
+
+Mobile banking service in Bangladesh.
+
+#### Controller Location
+
+```
+app/Http/Controllers/Payment/BkashController.php
+```
+
+### Paytm (India)
+
+Indian digital wallet and payment gateway.
+
+#### Configuration
+
+```bash .env
+PAYTM_ENVIRONMENT=production
+PAYTM_MERCHANT_ID=...
+PAYTM_MERCHANT_KEY=...
+PAYTM_MERCHANT_WEBSITE=...
+PAYTM_CHANNEL=WEB
+PAYTM_INDUSTRY_TYPE=Retail
+```
+
+#### Dependencies
+
+```json composer.json
+"anandsiddharth/laravel-paytm-wallet": "^2.0"
+```
+
+### Flutterwave (Africa)
+
+African payment gateway supporting multiple countries.
+
+#### Controller Location
+
+```
+app/Http/Controllers/Payment/FlutterwaveController.php
+```
+
+#### Dependencies
+
+```json composer.json
+"kingflamez/laravelrave": "dev-master"
+```
+
+### Payhere (Sri Lanka)
+
+Sri Lankan payment gateway.
+
+#### Controller Location
+
+```
+app/Http/Controllers/Payment/PayhereController.php
+```
+
+### Ngenius (Middle East)
+
+Payment gateway for Middle Eastern markets.
+
+#### Controller Location
+
+```
+app/Http/Controllers/Payment/NgeniusController.php
+```
+
+### Payku (Chile)
+
+Chilean payment gateway.
+
+#### Controller Location
+
+```
+app/Http/Controllers/Payment/PaykuController.php
+```
+
+#### Dependencies
+
+```json composer.json
+"sebacarrasco93/laravel-payku": "^1.0"
+```
+
+### MyFatoorah (Middle East)
+
+Payment gateway for Kuwait and Middle East.
+
+#### Dependencies
+
+```json composer.json
+"myfatoorah/laravel-package": "^2.1"
+```
+
+### Voguepay (Africa)
+
+African payment gateway.
+
+#### Controller Location
+
+```
+app/Http/Controllers/Payment/VoguepayController.php
+```
+
+### Aamarpay (Bangladesh)
+
+Bangladeshi payment aggregator.
+
+#### Controller Location
+
+```
+app/Http/Controllers/Payment/AamarpayController.php
+```
+
+## Common Payment Architecture
+
+All payment gateways follow this pattern:
+
+### Payment Types Supported
+
+```php
+if (Session::has('payment_type')) {
+    switch (Session::get('payment_type')) {
+        case 'cart_payment':
+            $combined_order = CombinedOrder::findOrFail(Session::get('combined_order_id'));
+            $amount = $combined_order->grand_total;
+            break;
+            
+        case 'wallet_payment':
+            $amount = Session::get('payment_data')['amount'];
+            break;
+            
+        case 'customer_package_payment':
+            $customer_package = CustomerPackage::findOrFail(Session::get('payment_data')['customer_package_id']);
+            $amount = $customer_package->amount;
+            break;
+            
+        case 'seller_package_payment':
+            $seller_package = SellerPackage::findOrFail(Session::get('payment_data')['seller_package_id']);
+            $amount = $seller_package->amount;
+            break;
+    }
+}
+```
+
+### Payment Completion
+
+```php
+if (Session::has('payment_type')) {
+    if (Session::get('payment_type') == 'cart_payment') {
+        return (new CheckoutController)->checkout_done(Session::get('combined_order_id'), $payment_details);
+    } elseif (Session::get('payment_type') == 'wallet_payment') {
+        return (new WalletController)->wallet_payment_done(Session::get('payment_data'), $payment_details);
+    } elseif (Session::get('payment_type') == 'customer_package_payment') {
+        return (new CustomerPackageController)->purchase_payment_done(Session::get('payment_data'), $payment_details);
+    } elseif (Session::get('payment_type') == 'seller_package_payment') {
+        return (new SellerPackageController)->purchase_payment_done(Session::get('payment_data'), $payment_details);
+    }
+}
+```
+
+## Cash on Delivery
+
+Ecom also supports Cash on Delivery (COD):
+
+#### Controller Location
+
+```
+app/Http/Controllers/Payment/CashOnDeliveryController.php
+```
+
+COD requires no external gateway integration and can be enabled directly from the admin panel.
+
+## Wallet Payment
+
+Internal wallet system for stored balance:
+
+#### Controller Location
+
+```
+app/Http/Controllers/Payment/WalletController.php
+```
+
+Customers can recharge wallet using any enabled payment gateway and use wallet balance for purchases.
+
+## Gateway Selection Guide
+
+### By Region
+
+| Region | Recommended Gateways |
+|--------|---------------------|
+| Global | Stripe, PayPal |
+| India | Razorpay, Paytm, Instamojo |
+| Bangladesh | SSLCommerz, bKash, Nagad, Aamarpay |
+| Africa | Paystack, Flutterwave, Voguepay |
+| Middle East | Ngenius, MyFatoorah, Payhere |
+| Latin America | Mercadopago |
+| Turkey | Iyzico |
+| USA/Canada | Stripe, PayPal, Authorize.Net |
+| Chile | Payku |
+
+### By Use Case
+
+- **International Business**: Stripe, PayPal
+- **Regional Focus**: Choose local gateway for best conversion
+- **Mobile Payments**: bKash, Nagad, Paytm, Razorpay (UPI)
+- **Low Transaction Fees**: Compare rates for your region
+- **Quick Setup**: PayPal, Stripe
+
+## Installation Steps
+
+For any payment gateway:
+
+<Steps>
+  <Step title="Install Dependencies">
+    ```bash
+    composer require vendor/package-name
+    ```
+  </Step>
+  
+  <Step title="Get API Credentials">
+    Register with the payment provider and obtain API keys
+  </Step>
+  
+  <Step title="Configure Environment">
+    Add credentials to `.env` file
+  </Step>
+  
+  <Step title="Enable in Admin Panel">
+    Activate the gateway in **Setup & Configurations** → **Payment Methods**
+  </Step>
+  
+  <Step title="Test Integration">
+    Use sandbox/test mode to verify payment flow
+  </Step>
+  
+  <Step title="Go Live">
+    Switch to production credentials after testing
+  </Step>
+</Steps>
+
+## Security Considerations
+
+<Warning>
+  **Universal Security Best Practices**
+  
+  - Never commit API keys to version control
+  - Use environment variables for all credentials
+  - Implement HTTPS for all payment pages
+  - Validate payment amounts server-side
+  - Enable webhook signature verification
+  - Log all payment transactions
+  - Set up fraud detection where available
+  - Use separate credentials for dev/staging/production
+  - Regularly audit payment logs
+  - Implement rate limiting on payment endpoints
+</Warning>
+
+## Troubleshooting Common Issues
+
+<AccordionGroup>
+  <Accordion title="Payment Gateway Not Appearing">
+    **Solution**:
+    - Verify gateway is enabled in admin panel
+    - Check API credentials are correct in `.env`
+    - Ensure required Composer packages are installed
+    - Clear application cache: `php artisan cache:clear`
+  </Accordion>
+  
+  <Accordion title="Currency Mismatch">
+    **Solution**:
+    - Verify system default currency matches gateway supported currencies
+    - Check currency code format (USD vs usd)
+    - Some gateways only support specific currencies
+  </Accordion>
+  
+  <Accordion title="Callback URLs Not Working">
+    **Solution**:
+    - Ensure URLs are publicly accessible
+    - Check HTTPS is enabled for production
+    - Verify routes are registered in `routes/web.php`
+    - Check web server configuration (nginx/Apache)
+  </Accordion>
+  
+  <Accordion title="Amount Formatting Error">
+    **Solution**:
+    - Some gateways need cents: `$amount * 100`
+    - Others need decimal: `number_format($amount, 2, '.', '')`
+    - Check specific gateway documentation
+  </Accordion>
+</AccordionGroup>
+
+## Testing Recommendations
+
+For each gateway:
+
+1. **Test all payment types**: cart, wallet, packages
+2. **Test success flow**: Complete payment successfully
+3. **Test failure flow**: Cancel or decline payment
+4. **Test amount calculation**: Verify correct amounts charged
+5. **Test currency handling**: Ensure proper currency conversion
+6. **Test user authentication**: Verify user session maintained
+7. **Test order creation**: Confirm orders created correctly
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Payment Overview" icon="credit-card" href="/integrations/payments-overview">
+    Learn about payment gateway architecture
+  </Card>
+  <Card title="Stripe Integration" icon="stripe" href="/integrations/stripe">
+    Primary international gateway
+  </Card>
+  <Card title="Razorpay Integration" icon="landmark" href="/integrations/razorpay">
+    Primary Indian gateway
+  </Card>
+  <Card title="SSLCommerz Integration" icon="lock" href="/integrations/sslcommerz">
+    Primary Bangladesh gateway
+  </Card>
+</CardGroup>

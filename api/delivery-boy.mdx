@@ -1,0 +1,317 @@
+---
+title: 'Delivery Boy'
+description: 'Delivery personnel order management'
+---
+
+<Note>
+All delivery boy endpoints require authentication with `auth:sanctum` and `user_type` must be `delivery_boy`.
+</Note>
+
+## Dashboard Summary
+
+<api method="GET" endpoint="/api/v2/delivery-boy/dashboard-summary/{id}" auth="sanctum">
+  Get delivery boy dashboard statistics
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Delivery boy user ID
+</ParamField>
+
+### Response
+
+```json
+{
+  "completed_delivery": 123,
+  "pending_delivery": 15,
+  "total_collection": "$5,420.00",
+  "total_earning": "$542.00",
+  "cancelled": 5,
+  "on_the_way": 8,
+  "picked": 12,
+  "assigned": 10
+}
+```
+
+### Example
+
+```bash
+curl -X GET https://your-domain.com/api/v2/delivery-boy/dashboard-summary/123 \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+## Deliveries by Status
+
+### Assigned Deliveries
+
+<api method="GET" endpoint="/api/v2/delivery-boy/deliveries/assigned/{id}" auth="sanctum">
+  Get pending and confirmed orders assigned to delivery boy
+</api>
+
+### Picked Up Deliveries
+
+<api method="GET" endpoint="/api/v2/delivery-boy/deliveries/picked_up/{id}" auth="sanctum">
+  Get orders that have been picked up
+</api>
+
+### On The Way Deliveries
+
+<api method="GET" endpoint="/api/v2/delivery-boy/deliveries/on_the_way/{id}" auth="sanctum">
+  Get orders currently out for delivery
+</api>
+
+### Completed Deliveries
+
+<api method="GET" endpoint="/api/v2/delivery-boy/deliveries/completed/{id}" auth="sanctum">
+  Get delivered orders
+</api>
+
+#### Query Parameters
+
+<ParamField query="date_range" type="string">
+  Filter by date: `today`, `this_week`, `this_month`
+</ParamField>
+
+<ParamField query="payment_type" type="string">
+  Filter by payment: `cod`, `non-cod`
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Page number
+</ParamField>
+
+### Cancelled Deliveries
+
+<api method="GET" endpoint="/api/v2/delivery-boy/deliveries/cancelled/{id}" auth="sanctum">
+  Get cancelled orders
+</api>
+
+#### Query Parameters
+
+<ParamField query="date_range" type="string">
+  Filter by date: `today`, `this_week`, `this_month`
+</ParamField>
+
+<ParamField query="payment_type" type="string">
+  Filter by payment: `cod`, `non-cod`
+</ParamField>
+
+### Example
+
+```bash
+curl -X GET "https://your-domain.com/api/v2/delivery-boy/deliveries/completed/123?date_range=this_week&payment_type=cod" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+## Change Delivery Status
+
+<api method="POST" endpoint="/api/v2/delivery-boy/change-delivery-status" auth="sanctum">
+  Update order delivery status
+</api>
+
+### Request
+
+<ParamField body="order_id" type="integer" required>
+  Order ID
+</ParamField>
+
+<ParamField body="delivery_boy_id" type="integer" required>
+  Delivery boy user ID
+</ParamField>
+
+<ParamField body="status" type="string" required>
+  New status: `picked_up`, `on_the_way`, `delivered`, `cancelled`
+</ParamField>
+
+### Response
+
+```json
+{
+  "result": true,
+  "message": "Delivery status changed to Picked Up"
+}
+```
+
+### Example
+
+```bash
+curl -X POST https://your-domain.com/api/v2/delivery-boy/change-delivery-status \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "order_id": 456,
+    "delivery_boy_id": 123,
+    "status": "picked_up"
+  }'
+```
+
+<Info>
+When status is changed to `delivered`:
+- Payment status is updated to `paid` for COD orders
+- Collection amount is added to delivery boy's total
+- Earning is calculated based on commission settings
+- Commission and club points are calculated
+- SMS notification is sent (if enabled)
+</Info>
+
+## Order Details
+
+### Get Order Details
+
+<api method="GET" endpoint="/api/v2/delivery-boy/purchase-history-details/{id}" auth="sanctum">
+  Get detailed information about an order
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Order ID
+</ParamField>
+
+### Get Order Items
+
+<api method="GET" endpoint="/api/v2/delivery-boy/purchase-history-items/{id}" auth="sanctum">
+  Get items in an order
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Order ID
+</ParamField>
+
+## Collection Management
+
+### Collection Summary
+
+<api method="GET" endpoint="/api/v2/delivery-boy/collection-summary/{id}" auth="sanctum">
+  Get today's and yesterday's COD collection summary
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Delivery boy user ID
+</ParamField>
+
+### Response
+
+```json
+{
+  "today_date": "15 Mar, 2024",
+  "today_collection": "$350.00",
+  "yesterday_date": "14 Mar, 2024",
+  "yesterday_collection": "$420.00"
+}
+```
+
+### Collection History
+
+<api method="GET" endpoint="/api/v2/delivery-boy/collection/{id}" auth="sanctum">
+  Get COD collection history
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Delivery boy user ID
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Page number
+</ParamField>
+
+## Earnings Management
+
+### Earning Summary
+
+<api method="GET" endpoint="/api/v2/delivery-boy/earning-summary/{id}" auth="sanctum">
+  Get today's and yesterday's earning summary
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Delivery boy user ID
+</ParamField>
+
+### Response
+
+```json
+{
+  "today_date": "15 Mar, 2024",
+  "today_earning": "$35.00",
+  "yesterday_date": "14 Mar, 2024",
+  "yesterday_earning": "$42.00"
+}
+```
+
+### Earning History
+
+<api method="GET" endpoint="/api/v2/delivery-boy/earning/{id}" auth="sanctum">
+  Get earning history for all delivered orders
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Delivery boy user ID
+</ParamField>
+
+## Cancel Request
+
+<api method="GET" endpoint="/api/v2/delivery-boy/cancel-request/{id}" auth="sanctum">
+  Request order cancellation
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Order ID
+</ParamField>
+
+### Response
+
+```json
+{
+  "result": true,
+  "message": "Requested for cancellation"
+}
+```
+
+<Warning>
+This only creates a cancellation request. Admin approval is required to actually cancel the order.
+</Warning>
+
+## Delivery Status Flow
+
+1. **assigned/pending** - Order assigned to delivery boy
+2. **confirmed** - Order confirmed by seller
+3. **picked_up** - Delivery boy picked up the order
+4. **on_the_way** - Order is out for delivery
+5. **delivered** - Order successfully delivered
+6. **cancelled** - Order cancelled
+
+## Payment Commission
+
+Delivery boy earnings are calculated based on the `delivery_boy_payment_type` setting:
+
+- **commission**: Fixed commission per delivery (from `delivery_boy_commission` setting)
+- **percentage**: Percentage of order value
+
+### COD Collection
+
+For Cash on Delivery orders:
+- Collection amount is tracked when status changes to `delivered`
+- Total collection is accumulated in delivery boy's account
+- Payment status automatically updates to `paid`
+
+## Important Notes
+
+<Note>
+- Only orders assigned to the specific delivery boy are accessible
+- Orders are sorted by `delivery_history_date` (most recent first)
+- Cancel requests require admin approval
+- SMS notifications sent on status changes (if OTP system is enabled)
+</Note>

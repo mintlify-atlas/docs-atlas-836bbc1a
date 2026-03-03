@@ -1,0 +1,739 @@
+---
+title: Cart & Checkout
+description: Shopping cart management and multi-step checkout process with shipping and payment options
+---
+
+## Overview
+
+The Ecom platform provides a comprehensive cart and checkout system that manages shopping sessions, calculates prices with taxes and shipping, applies coupons, and processes orders through a multi-step checkout flow.
+
+<CardGroup cols={2}>
+  <Card title="Guest & User Carts" icon="shopping-cart">
+    Separate cart handling for guests and authenticated users
+  </Card>
+  <Card title="Dynamic Pricing" icon="calculator">
+    Real-time price calculations with discounts and taxes
+  </Card>
+  <Card title="Coupon System" icon="ticket">
+    Cart-based and product-based discount coupons
+  </Card>
+  <Card title="Multi-Step Checkout" icon="list-check">
+    Shipping info, delivery options, and payment selection
+  </Card>
+</CardGroup>
+
+## Cart Model
+
+The `Cart` model stores temporary shopping cart data for users.
+
+### Cart Structure
+
+```php
+class Cart extends Model
+{
+    protected $guarded = [];
+    protected $fillable = [
+        'address_id',
+        'price',
+        'tax',
+        'shipping_cost',
+        'discount',
+        'product_referral_code',
+        'coupon_code',
+        'coupon_applied',
+        'quantity',
+        'user_id',
+        'temp_user_id',
+        'owner_id',
+        'product_id',
+        'variation'
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function product()
+    {
+        return $this->belongsTo(Product::class);
+    }
+
+    public function address()
+    {
+        return $this->belongsTo(Address::class);
+    }
+}
+```
+
+**Location:** `~/workspace/source/app/Models/Cart.php:9-28`
+
+### Cart Fields
+
+<AccordionGroup>
+  <Accordion title="User Identification">
+    - **user_id**: Authenticated user ID
+    - **temp_user_id**: Session-based ID for guest users
+    - **owner_id**: Seller/shop owner ID
+
+    The cart supports both authenticated and guest users through a dual identification system.
+  </Accordion>
+
+  <Accordion title="Product Information">
+    - **product_id**: Reference to product
+    - **variation**: Product variant (color, size, etc.)
+    - **quantity**: Number of items
+    - **product_referral_code**: Affiliate tracking code
+  </Accordion>
+
+  <Accordion title="Pricing & Discounts">
+    - **price**: Unit price after discounts
+    - **tax**: Tax amount
+    - **shipping_cost**: Shipping fee
+    - **discount**: Coupon discount amount
+    - **coupon_code**: Applied coupon code
+    - **coupon_applied**: Boolean flag
+  </Accordion>
+
+  <Accordion title="Shipping">
+    - **address_id**: Selected delivery address
+  </Accordion>
+</AccordionGroup>
+
+## Cart Management
+
+The `CartController` handles all cart operations.
+
+### Viewing Cart
+
+```php
+public function index(Request $request)
+{
+    if (auth()->user() != null) {
+        $user_id = Auth::user()->id;
+        
+        // Merge temp cart with user cart on login
+        if ($request->session()->get('temp_user_id')) {
+            Cart::where('temp_user_id', $request->session()->get('temp_user_id'))
+                ->update([
+                    'user_id' => $user_id,
+                    'temp_user_id' => null
+                ]);
+            Session::forget('temp_user_id');
+        }
+        
+        $carts = Cart::where('user_id', $user_id)->get();
+    } else {
+        $temp_user_id = $request->session()->get('temp_user_id');
+        $carts = ($temp_user_id != null) ? Cart::where('temp_user_id', $temp_user_id)->get() : [];
+    }
+
+    return view('frontend.view_cart', compact('carts'));
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/CartController.php:16-39`
+
+### Adding to Cart
+
+```php
+public function addToCart(Request $request)
+{
+    $carts = Cart::where('user_id', auth()->user()->id)->get();
+    $check_auction_in_cart = CartUtility::check_auction_in_cart($carts);
+    $product = Product::find($request->id);
+    
+    // Prevent mixing auction and regular products
+    if($check_auction_in_cart && $product->auction_product == 0) {
+        return array(
+            'status' => 0,
+            'cart_count' => count($carts),
+            'modal_view' => view('frontend.'.get_setting('homepage_select').'.partials.removeAuctionProductFromCart')->render(),
+            'nav_cart_view' => view('frontend.'.get_setting('homepage_select').'.partials.cart')->render(),
+        );
+    }
+    
+    $quantity = $request['quantity'];
+
+    // Check minimum quantity requirement
+    if ($quantity < $product->min_qty) {
+        return array(
+            'status' => 0,
+            'cart_count' => count($carts),
+            'modal_view' => view('frontend.'.get_setting('homepage_select').'.partials.minQtyNotSatisfied', ['min_qty' => $product->min_qty])->render(),
+            'nav_cart_view' => view('frontend.'.get_setting('homepage_select').'.partials.cart')->render(),
+        );
+    }
+
+    // Create cart variant string
+    $str = CartUtility::create_cart_variant($product, $request->all());
+    $product_stock = $product->stocks->where('variant', $str)->first();
+
+    // Find or create cart item
+    $cart = Cart::firstOrNew([
+        'variation' => $str,
+        'user_id' => auth()->user()->id,
+        'product_id' => $request['id']
+    ]);
+
+    // Check stock availability
+    if ($cart->exists && $product->digital == 0) {
+        if ($product->auction_product == 1 && ($cart->product_id == $product->id)) {
+            return array(
+                'status' => 0,
+                'modal_view' => view('frontend.'.get_setting('homepage_select').'.partials.auctionProductAlredayAddedCart')->render(),
+            );
+        }
+        if ($product_stock->qty < $cart->quantity + $request['quantity']) {
+            return array(
+                'status' => 0,
+                'modal_view' => view('frontend.'.get_setting('homepage_select').'.partials.outOfStockCart')->render(),
+            );
+        }
+        $quantity = $cart->quantity + $request['quantity'];
+    }
+
+    // Calculate price and tax
+    $price = CartUtility::get_price($product, $product_stock, $request->quantity);
+    $tax = CartUtility::tax_calculation($product, $price);
+    
+    // Save cart item
+    CartUtility::save_cart_data($cart, $product, $price, $tax, $quantity);
+    
+    $carts = Cart::where('user_id', auth()->user()->id)->get();
+    return array(
+        'status' => 1,
+        'cart_count' => count($carts),
+        'modal_view' => view('frontend.'.get_setting('homepage_select').'.partials.addedToCart', compact('product', 'cart'))->render(),
+        'nav_cart_view' => view('frontend.'.get_setting('homepage_select').'.partials.cart')->render(),
+    );
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/CartController.php:53-122`
+
+### Cart Validations
+
+<CardGroup cols={2}>
+  <Card title="Minimum Quantity" icon="hash">
+    Enforces product-specific minimum order quantities
+  </Card>
+  <Card title="Stock Availability" icon="warehouse">
+    Prevents adding more items than available stock
+  </Card>
+  <Card title="Auction Products" icon="gavel">
+    Prevents mixing auction and regular products
+  </Card>
+  <Card title="Duplicate Prevention" icon="clone">
+    Limits one auction product per cart
+  </Card>
+</CardGroup>
+
+### Removing from Cart
+
+```php
+public function removeFromCart(Request $request)
+{
+    Cart::destroy($request->id);
+    
+    if (auth()->user() != null) {
+        $user_id = Auth::user()->id;
+        $carts = Cart::where('user_id', $user_id)->get();
+    } else {
+        $temp_user_id = $request->session()->get('temp_user_id');
+        $carts = Cart::where('temp_user_id', $temp_user_id)->get();
+    }
+
+    return array(
+        'cart_count' => count($carts),
+        'cart_view' => view('frontend.'.get_setting('homepage_select').'.partials.cart_details', compact('carts'))->render(),
+        'nav_cart_view' => view('frontend.'.get_setting('homepage_select').'.partials.cart')->render(),
+    );
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/CartController.php:125-141`
+
+### Updating Quantity
+
+```php
+public function updateQuantity(Request $request)
+{
+    $cartItem = Cart::findOrFail($request->id);
+
+    if ($cartItem['id'] == $request->id) {
+        $product = Product::find($cartItem['product_id']);
+        $product_stock = $product->stocks->where('variant', $cartItem['variation'])->first();
+        $quantity = $product_stock->qty;
+        $price = $product_stock->price;
+
+        // Apply discount
+        $discount_applicable = false;
+        if ($product->discount_start_date == null) {
+            $discount_applicable = true;
+        } elseif (strtotime(date('d-m-Y H:i:s')) >= $product->discount_start_date &&
+                  strtotime(date('d-m-Y H:i:s')) <= $product->discount_end_date) {
+            $discount_applicable = true;
+        }
+
+        if ($discount_applicable) {
+            if ($product->discount_type == 'percent') {
+                $price -= ($price * $product->discount) / 100;
+            } elseif ($product->discount_type == 'amount') {
+                $price -= $product->discount;
+            }
+        }
+
+        // Check stock and minimum quantity
+        if ($quantity >= $request->quantity) {
+            if ($request->quantity >= $product->min_qty) {
+                $cartItem['quantity'] = $request->quantity;
+            }
+        }
+
+        // Apply wholesale pricing
+        if ($product->wholesale_product) {
+            $wholesalePrice = $product_stock->wholesalePrices
+                ->where('min_qty', '<=', $request->quantity)
+                ->where('max_qty', '>=', $request->quantity)
+                ->first();
+            if ($wholesalePrice) {
+                $price = $wholesalePrice->price;
+            }
+        }
+
+        $cartItem['price'] = $price;
+        $cartItem->save();
+    }
+
+    // Return updated cart view
+    if (auth()->user() != null) {
+        $user_id = Auth::user()->id;
+        $carts = Cart::where('user_id', $user_id)->get();
+    } else {
+        $temp_user_id = $request->session()->get('temp_user_id');
+        $carts = Cart::where('temp_user_id', $temp_user_id)->get();
+    }
+
+    return array(
+        'cart_count' => count($carts),
+        'cart_view' => view('frontend.'.get_setting('homepage_select').'.partials.cart_details', compact('carts'))->render(),
+        'nav_cart_view' => view('frontend.'.get_setting('homepage_select').'.partials.cart')->render(),
+    );
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/CartController.php:144-204`
+
+## Checkout Process
+
+The `CheckoutController` manages the multi-step checkout flow.
+
+### Step 1: Shipping Information
+
+```php
+public function get_shipping_info(Request $request)
+{
+    $carts = Cart::where('user_id', Auth::user()->id)->get();
+    
+    if ($carts && count($carts) > 0) {
+        $categories = Category::all();
+        return view('frontend.shipping_info', compact('categories', 'carts'));
+    }
+    
+    flash(translate('Your cart is empty'))->success();
+    return back();
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/CheckoutController.php:102-112`
+
+### Step 2: Store Shipping Address
+
+```php
+public function store_shipping_info(Request $request)
+{
+    if ($request->address_id == null) {
+        flash(translate("Please add shipping address"))->warning();
+        return back();
+    }
+
+    $carts = Cart::where('user_id', Auth::user()->id)->get();
+    if ($carts->isEmpty()) {
+        flash(translate('Your cart is empty'))->warning();
+        return redirect()->route('home');
+    }
+
+    // Attach address to cart items
+    foreach ($carts as $key => $cartItem) {
+        $cartItem->address_id = $request->address_id;
+        $cartItem->save();
+    }
+
+    // Load available carriers for shipping zone
+    $carrier_list = array();
+    if (get_setting('shipping_type') == 'carrier_wise_shipping') {
+        $zone = \App\Models\Country::where('id', $carts[0]['address']['country_id'])->first()->zone_id;
+        $carrier_query = Carrier::where('status', 1);
+        $carrier_query->whereIn('id', function ($query) use ($zone) {
+            $query->select('carrier_id')->from('carrier_range_prices')
+                ->where('zone_id', $zone);
+        })->orWhere('free_shipping', 1);
+        $carrier_list = $carrier_query->get();
+    }
+
+    return view('frontend.delivery_info', compact('carts', 'carrier_list'));
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/CheckoutController.php:114-145`
+
+### Step 3: Store Delivery Information
+
+```php
+public function store_delivery_info(Request $request)
+{
+    $carts = Cart::where('user_id', Auth::user()->id)->get();
+
+    if ($carts->isEmpty()) {
+        flash(translate('Your cart is empty'))->warning();
+        return redirect()->route('home');
+    }
+
+    $shipping_info = Address::where('id', $carts[0]['address_id'])->first();
+    $total = 0;
+    $tax = 0;
+    $shipping = 0;
+    $subtotal = 0;
+
+    if ($carts && count($carts) > 0) {
+        foreach ($carts as $key => $cartItem) {
+            $product = Product::find($cartItem['product_id']);
+            $tax += cart_product_tax($cartItem, $product, false) * $cartItem['quantity'];
+            $subtotal += cart_product_price($cartItem, $product, false, false) * $cartItem['quantity'];
+
+            // Determine shipping type and cost
+            if (get_setting('shipping_type') != 'carrier_wise_shipping' || 
+                $request['shipping_type_' . $product->user_id] == 'pickup_point') {
+                
+                if ($request['shipping_type_' . $product->user_id] == 'pickup_point') {
+                    $cartItem['shipping_type'] = 'pickup_point';
+                    $cartItem['pickup_point'] = $request['pickup_point_id_' . $product->user_id];
+                } else {
+                    $cartItem['shipping_type'] = 'home_delivery';
+                }
+                
+                $cartItem['shipping_cost'] = 0;
+                if ($cartItem['shipping_type'] == 'home_delivery') {
+                    $cartItem['shipping_cost'] = getShippingCost($carts, $key);
+                }
+            } else {
+                $cartItem['shipping_type'] = 'carrier';
+                $cartItem['carrier_id'] = $request['carrier_id_' . $product->user_id];
+                $cartItem['shipping_cost'] = getShippingCost($carts, $key, $cartItem['carrier_id']);
+            }
+
+            $shipping += $cartItem['shipping_cost'];
+            $cartItem->save();
+        }
+        $total = $subtotal + $tax + $shipping;
+
+        return view('frontend.payment_select', compact('carts', 'shipping_info', 'total'));
+    } else {
+        flash(translate('Your Cart was empty'))->warning();
+        return redirect()->route('home');
+    }
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/CheckoutController.php:147-196`
+
+### Step 4: Payment & Order Creation
+
+```php
+public function checkout(Request $request)
+{
+    if ($request->payment_option == null) {
+        flash(translate('There is no payment option is selected.'))->warning();
+        return redirect()->route('checkout.shipping_info');
+    }
+    
+    $carts = Cart::where('user_id', Auth::user()->id)->get();
+    
+    // Minimum order amount check
+    if(get_setting('minimum_order_amount_check') == 1){
+        $subtotal = 0;
+        foreach ($carts as $key => $cartItem){ 
+            $product = Product::find($cartItem['product_id']);
+            $subtotal += cart_product_price($cartItem, $product, false, false) * $cartItem['quantity'];
+        }
+        if ($subtotal < get_setting('minimum_order_amount')) {
+            flash(translate('You order amount is less than the minimum order amount'))->warning();
+            return redirect()->route('home');
+        }
+    }
+    
+    // Create order
+    (new OrderController)->store($request);
+
+    // Clear cart
+    if(count($carts) > 0){
+        Cart::where('user_id', Auth::user()->id)->delete();
+    }
+    
+    $request->session()->put('payment_type', 'cart_payment');
+    $data['combined_order_id'] = $request->session()->get('combined_order_id');
+    $request->session()->put('payment_data', $data);
+    
+    if ($request->session()->get('combined_order_id') != null) {
+        // Route to payment gateway
+        $decorator = __NAMESPACE__ . '\\Payment\\' . str_replace(' ', '', ucwords(str_replace('_', ' ', $request->payment_option))) . "Controller";
+        if (class_exists($decorator)) {
+            return (new $decorator)->pay($request);
+        }
+        else {
+            // Manual payment
+            $combined_order = CombinedOrder::findOrFail($request->session()->get('combined_order_id'));
+            $manual_payment_data = array(
+                'name'   => $request->payment_option,
+                'amount' => $combined_order->grand_total,
+                'trx_id' => $request->trx_id,
+                'photo'  => $request->photo
+            );
+            foreach ($combined_order->orders as $order) {
+                $order->manual_payment = 1;
+                $order->manual_payment_data = json_encode($manual_payment_data);
+                $order->save();
+            }
+            flash(translate('Your order has been placed successfully. Please submit payment information from purchase history'))->success();
+            return redirect()->route('order_confirmed');
+        }
+    }
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/CheckoutController.php:30-83`
+
+## Coupon System
+
+The checkout process supports multiple coupon types.
+
+### Applying Coupons
+
+```php
+public function apply_coupon_code(Request $request)
+{
+    $user = auth()->user();
+    $coupon = Coupon::where('code', $request->code)->first();
+    $response_message = array();
+
+    // Check welcome coupon
+    $couponUser = true;
+    if($coupon && $coupon->type == 'welcome_base'){
+        $userCoupon = $user->userCoupon;
+        if(!$userCoupon){
+            $couponUser = false;
+        }
+    }
+    
+    if ($coupon != null && $couponUser) {
+        // Coupon expiry check
+        if($coupon->type != 'welcome_base') {
+            $validationDateCheckCondition = strtotime(date('d-m-Y')) >= $coupon->start_date && 
+                                           strtotime(date('d-m-Y')) <= $coupon->end_date;
+        } else {
+            $validationDateCheckCondition = false;
+            if($userCoupon){
+                $validationDateCheckCondition = $userCoupon->expiry_date >= strtotime(date('d-m-Y H:i:s'));
+            }
+        }
+        
+        if ($validationDateCheckCondition) {
+            if (CouponUsage::where('user_id', Auth::user()->id)->where('coupon_id', $coupon->id)->first() == null) {
+                $coupon_details = json_decode($coupon->details);
+
+                $carts = Cart::where('user_id', Auth::user()->id)
+                    ->where('owner_id', $coupon->user_id)
+                    ->get();
+
+                $coupon_discount = 0;
+
+                // Cart-based coupon
+                if ($coupon->type == 'cart_base' || $coupon->type == 'welcome_base') {
+                    $subtotal = 0;
+                    $tax = 0;
+                    $shipping = 0;
+                    foreach ($carts as $key => $cartItem) {
+                        $product = Product::find($cartItem['product_id']);
+                        $subtotal += cart_product_price($cartItem, $product, false, false) * $cartItem['quantity'];
+                        $tax += cart_product_tax($cartItem, $product, false) * $cartItem['quantity'];
+                        $shipping += $cartItem['shipping_cost'];
+                    }
+                    $sum = $subtotal + $tax + $shipping;
+                    
+                    if ($coupon->type == 'cart_base' && $sum >= $coupon_details->min_buy) {
+                        if ($coupon->discount_type == 'percent') {
+                            $coupon_discount = ($sum * $coupon->discount) / 100;
+                            if ($coupon_discount > $coupon_details->max_discount) {
+                                $coupon_discount = $coupon_details->max_discount;
+                            }
+                        } elseif ($coupon->discount_type == 'amount') {
+                            $coupon_discount = $coupon->discount;
+                        }
+                    } elseif ($coupon->type == 'welcome_base' && $sum >= $userCoupon->min_buy) {
+                        $coupon_discount = $userCoupon->discount_type == 'percent' ? 
+                            (($sum * $userCoupon->discount) / 100) : $userCoupon->discount;
+                    }
+                }
+                // Product-based coupon
+                elseif ($coupon->type == 'product_base') {
+                    foreach ($carts as $key => $cartItem) {
+                        $product = Product::find($cartItem['product_id']);
+                        foreach ($coupon_details as $key => $coupon_detail) {
+                            if ($coupon_detail->product_id == $cartItem['product_id']) {
+                                if ($coupon->discount_type == 'percent') {
+                                    $coupon_discount += (cart_product_price($cartItem, $product, false, false) * 
+                                                        $coupon->discount / 100) * $cartItem['quantity'];
+                                } elseif ($coupon->discount_type == 'amount') {
+                                    $coupon_discount += $coupon->discount * $cartItem['quantity'];
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if ($coupon_discount > 0) {
+                    Cart::where('user_id', Auth::user()->id)
+                        ->where('owner_id', $coupon->user_id)
+                        ->update([
+                            'discount' => $coupon_discount / count($carts),
+                            'coupon_code' => $request->code,
+                            'coupon_applied' => 1
+                        ]);
+
+                    $response_message['response'] = 'success';
+                    $response_message['message'] = translate('Coupon has been applied');
+                } else {
+                    $response_message['response'] = 'warning';
+                    $response_message['message'] = translate('This coupon is not applicable to your cart products!');
+                }
+            } else {
+                $response_message['response'] = 'warning';
+                $response_message['message'] = translate('You already used this coupon!');
+            }
+        } else {
+            $response_message['response'] = 'warning';
+            $response_message['message'] = translate('Coupon expired!');
+        }
+    } else {
+        $response_message['response'] = 'danger';
+        $response_message['message'] = translate('Invalid coupon!');
+    }
+
+    $carts = Cart::where('user_id', Auth::user()->id)->get();
+    $shipping_info = Address::where('id', $carts[0]['address_id'])->first();
+    
+    $returnHTML = view('frontend.'.get_setting('homepage_select').'.partials.cart_summary', 
+                      compact('coupon', 'carts', 'shipping_info'))->render();
+    return response()->json(array('response_message' => $response_message, 'html'=>$returnHTML));
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/CheckoutController.php:198-309`
+
+### Coupon Types
+
+<CardGroup cols={3}>
+  <Card title="Cart-Based" icon="shopping-cart">
+    Discount on total cart value with minimum purchase requirement
+  </Card>
+  <Card title="Product-Based" icon="box">
+    Discount on specific products in the cart
+  </Card>
+  <Card title="Welcome Coupon" icon="gift">
+    Special coupons for new users with expiry dates
+  </Card>
+</CardGroup>
+
+### Removing Coupons
+
+```php
+public function remove_coupon_code(Request $request)
+{
+    Cart::where('user_id', Auth::user()->id)
+        ->update([
+            'discount' => 0.00,
+            'coupon_code' => '',
+            'coupon_applied' => 0
+        ]);
+
+    $coupon = Coupon::where('code', $request->code)->first();
+    $carts = Cart::where('user_id', Auth::user()->id)->get();
+    $shipping_info = Address::where('id', $carts[0]['address_id'])->first();
+
+    return view('frontend.'.get_setting('homepage_select').'.partials.cart_summary', 
+               compact('coupon', 'carts', 'shipping_info'));
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/CheckoutController.php:311-329`
+
+## Checkout Features
+
+<CardGroup cols={3}>
+  <Card title="Guest Checkout" icon="user">
+    Temporary cart for non-logged users
+  </Card>
+  <Card title="Cart Merging" icon="code-merge">
+    Merge guest cart on login
+  </Card>
+  <Card title="Multiple Shipping" icon="truck">
+    Home delivery, pickup points, carriers
+  </Card>
+  <Card title="Dynamic Pricing" icon="calculator">
+    Real-time tax and shipping calculation
+  </Card>
+  <Card title="Minimum Order" icon="coins">
+    Configurable minimum order amount
+  </Card>
+  <Card title="Club Points" icon="star">
+    Loyalty points redemption
+  </Card>
+</CardGroup>
+
+## Order Confirmation
+
+```php
+public function order_confirmed()
+{
+    $combined_order = CombinedOrder::findOrFail(Session::get('combined_order_id'));
+
+    Cart::where('user_id', $combined_order->user_id)->delete();
+
+    return view('frontend.order_confirmed', compact('combined_order'));
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/CheckoutController.php:353-368`
+
+## Checkout Flow Summary
+
+1. **Add to Cart** - Select product variants and quantities
+2. **View Cart** - Review items, update quantities, apply coupons
+3. **Shipping Info** - Select or add delivery address
+4. **Delivery Options** - Choose shipping method (home/pickup/carrier)
+5. **Payment Selection** - Select payment gateway or manual payment
+6. **Order Creation** - Generate orders, reduce stock, apply discounts
+7. **Payment Processing** - Process payment through gateway
+8. **Order Confirmation** - Display order details and confirmation
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Order Management" href="/features/orders">
+    Learn how orders are processed after checkout
+  </Card>
+  <Card title="Product Management" href="/features/products">
+    Understand product variants and pricing
+  </Card>
+</CardGroup>

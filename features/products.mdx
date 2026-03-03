@@ -1,0 +1,392 @@
+---
+title: Product Management
+description: Comprehensive product management system with variants, pricing, and inventory tracking
+---
+
+## Overview
+
+The Ecom platform provides a robust product management system that supports both physical and digital products with advanced features including multi-language support, variant management, taxes, flash deals, and inventory control.
+
+<CardGroup cols={2}>
+  <Card title="Product Types" icon="box">
+    Supports both physical and digital products with dedicated workflows
+  </Card>
+  <Card title="Multi-Language" icon="language">
+    Built-in translation support for global e-commerce
+  </Card>
+  <Card title="Variant Management" icon="sliders">
+    Advanced SKU combinations with colors and custom attributes
+  </Card>
+  <Card title="Inventory Tracking" icon="warehouse">
+    Real-time stock management with variant-level precision
+  </Card>
+</CardGroup>
+
+## Product Model
+
+The `Product` model is the core entity for managing products in the system.
+
+### Key Relationships
+
+<AccordionGroup>
+  <Accordion title="Category Relationships">
+    Products support both a main category and multiple categories:
+
+    ```php
+    // Main category (single)
+    public function main_category()
+    {
+        return $this->belongsTo(Category::class, 'category_id');
+    }
+    
+    // Additional categories (many-to-many)
+    public function categories()
+    {
+        return $this->belongsToMany(Category::class, 'product_categories');
+    }
+    ```
+
+    **Location:** `~/workspace/source/app/Models/Product.php:27-35`
+  </Accordion>
+
+  <Accordion title="Brand & Vendor">
+    Each product belongs to a brand and has an associated user (seller):
+
+    ```php
+    public function brand()
+    {
+        return $this->belongsTo(Brand::class);
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+    ```
+
+    **Location:** `~/workspace/source/app/Models/Product.php:37-45`
+  </Accordion>
+
+  <Accordion title="Stock & Inventory">
+    Products have multiple stock entries for variant management:
+
+    ```php
+    public function stocks()
+    {
+        return $this->hasMany(ProductStock::class);
+    }
+    ```
+
+    Stock is managed at the variant level, allowing different SKUs, prices, and quantities for each product variation.
+
+    **Location:** `~/workspace/source/app/Models/Product.php:67-70`
+  </Accordion>
+
+  <Accordion title="Pricing & Taxes">
+    Tax management with multiple tax rules per product:
+
+    ```php
+    public function taxes()
+    {
+        return $this->hasMany(ProductTax::class);
+    }
+    ```
+
+    Products are eager-loaded with taxes for efficient price calculations.
+
+    **Location:** `~/workspace/source/app/Models/Product.php:72-75`
+  </Accordion>
+
+  <Accordion title="Reviews & Queries">
+    Customer engagement features:
+
+    ```php
+    public function reviews()
+    {
+        return $this->hasMany(Review::class)->where('status', 1);
+    }
+
+    public function product_queries()
+    {
+        return $this->hasMany(ProductQuery::class);
+    }
+    ```
+
+    **Location:** `~/workspace/source/app/Models/Product.php:52-60`
+  </Accordion>
+</AccordionGroup>
+
+## Multi-Language Support
+
+Products support multiple translations through the `ProductTranslation` model:
+
+```php
+public function getTranslation($field = '', $lang = false)
+{
+    $lang = $lang == false ? App::getLocale() : $lang;
+    $product_translations = $this->product_translations->where('lang', $lang)->first();
+    return $product_translations != null ? $product_translations->$field : $this->$field;
+}
+
+public function product_translations()
+{
+    return $this->hasMany(ProductTranslation::class);
+}
+```
+
+**Location:** `~/workspace/source/app/Models/Product.php:15-25`
+
+### Translated Fields
+- Product name
+- Description
+- Unit of measurement
+
+## Product Creation
+
+The `ProductController` handles product creation with a multi-step wizard.
+
+### Store Method
+
+```php
+public function store(ProductRequest $request)
+{
+    $product = $this->productService->store($request->except([
+        '_token', 'sku', 'choice', 'tax_id', 'tax', 'tax_type', 
+        'flash_deal_id', 'flash_discount', 'flash_discount_type'
+    ]));
+    $request->merge(['product_id' => $product->id]);
+
+    // Product categories
+    $product->categories()->attach($request->category_ids);
+
+    // VAT & Tax
+    if ($request->tax_id) {
+        $this->productTaxService->store($request->only([
+            'tax_id', 'tax', 'tax_type', 'product_id'
+        ]));
+    }
+
+    // Flash Deal
+    $this->productFlashDealService->store($request->only([
+        'flash_deal_id', 'flash_discount', 'flash_discount_type'
+    ]), $product);
+
+    // Product Stock
+    $this->productStockService->store($request->only([
+        'colors_active', 'colors', 'choice_no', 'unit_price', 
+        'sku', 'current_stock', 'product_id'
+    ]), $product);
+
+    // Product Translations
+    $request->merge(['lang' => env('DEFAULT_LANGUAGE')]);
+    ProductTranslation::create($request->only([
+        'lang', 'name', 'unit', 'description', 'product_id'
+    ]));
+
+    flash(translate('Product has been inserted successfully'))->success();
+    return redirect()->route('products.admin');
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/ProductController.php:207-246`
+
+## Variant Management
+
+The platform supports advanced SKU combinations with colors and attributes.
+
+### SKU Combination Generation
+
+```php
+public function sku_combination(Request $request)
+{
+    $options = array();
+    if ($request->has('colors_active') && $request->has('colors') && count($request->colors) > 0) {
+        $colors_active = 1;
+        array_push($options, $request->colors);
+    } else {
+        $colors_active = 0;
+    }
+
+    $unit_price = $request->unit_price;
+    $product_name = $request->name;
+
+    if ($request->has('choice_no')) {
+        foreach ($request->choice_no as $key => $no) {
+            $name = 'choice_options_' . $no;
+            if (isset($request[$name])) {
+                $data = array();
+                foreach ($request[$name] as $key => $item) {
+                    array_push($data, $item);
+                }
+                array_push($options, $data);
+            }
+        }
+    }
+
+    $combinations = (new CombinationService())->generate_combination($options);
+    return view('backend.product.products.sku_combinations', 
+        compact('combinations', 'unit_price', 'colors_active', 'product_name'));
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/ProductController.php:545-575`
+
+## Product Types
+
+### Physical vs Digital
+
+The system differentiates between physical and digital products using scopes:
+
+```php
+public function scopePhysical($query)
+{
+    return $query->where('digital', 0);
+}
+
+public function scopeDigital($query)
+{
+    return $query->where('digital', 1);
+}
+```
+
+**Location:** `~/workspace/source/app/Models/Product.php:92-100`
+
+### Approved & Published
+
+Products must be approved and published to be visible:
+
+```php
+public function scopeIsApprovedPublished($query)
+{
+    return $query->where('approved', '1')->where('published', 1);
+}
+```
+
+**Location:** `~/workspace/source/app/Models/Product.php:107-110`
+
+## Product Features
+
+<CardGroup cols={3}>
+  <Card title="Flash Deals" icon="bolt">
+    Time-limited discounts with special pricing
+  </Card>
+  <Card title="Auction Products" icon="gavel">
+    Bidding system for auction-based products
+  </Card>
+  <Card title="Wishlist" icon="heart">
+    Customer wishlist functionality
+  </Card>
+  <Card title="Today's Deal" icon="star">
+    Featured products for daily promotions
+  </Card>
+  <Card title="Featured Products" icon="flag">
+    Highlighted products on homepage
+  </Card>
+  <Card title="Product Duplication" icon="copy">
+    Clone products with all settings
+  </Card>
+</CardGroup>
+
+## Product Updates
+
+The update method handles comprehensive product modifications:
+
+```php
+public function update(ProductRequest $request, Product $product)
+{
+    // Product
+    $product = $this->productService->update($request->except([
+        '_token', 'sku', 'choice', 'tax_id', 'tax', 'tax_type', 
+        'flash_deal_id', 'flash_discount', 'flash_discount_type'
+    ]), $product);
+
+    // Product categories
+    if ($request->has('category_ids')) {
+        $product->categories()->sync($request->category_ids);
+    }
+
+    // Product Stock - delete and recreate
+    $product->stocks()->delete();
+    $this->productStockService->store($stockData, $product);
+
+    // Flash Deal
+    if ($request->has('flash_deal_id')) {
+        $this->productFlashDealService->store($request->only([
+            'flash_deal_id', 'flash_discount', 'flash_discount_type'
+        ]), $product);
+    }
+
+    // VAT & Tax
+    if ($request->tax_id) {
+        $product->taxes()->delete();
+        $this->productTaxService->store($request->only([
+            'tax_id', 'tax', 'tax_type', 'product_id'
+        ]));
+    }
+
+    // Product Translations
+    ProductTranslation::updateOrCreate(
+        ['lang' => $lang, 'product_id' => $product->id],
+        $request->only(['name', 'unit', 'description'])
+    );
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/ProductController.php:313-395`
+
+## Bulk Operations
+
+### Bulk Delete
+
+```php
+public function bulk_product_delete(Request $request)
+{
+    if ($request->id) {
+        foreach ($request->id as $product_id) {
+            $this->destroy($product_id);
+        }
+    }
+    return 1;
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/ProductController.php:428-437`
+
+## Status Management
+
+<Accordion title="Update Published Status">
+```php
+public function updatePublished(Request $request)
+{
+    $product = Product::findOrFail($request->id);
+    $product->published = $request->status;
+    
+    // Check seller subscription limits
+    if ($product->added_by == 'seller' && addon_is_activated('seller_subscription') && $request->status == 1) {
+        $shop = $product->user->shop;
+        if ($shop->package_invalid_at == null
+            || Carbon::now()->diffInDays(Carbon::parse($shop->package_invalid_at), false) < 0
+            || $shop->product_upload_limit <= $shop->user->products()->where('published', 1)->count()
+        ) {
+            return 0;
+        }
+    }
+    
+    $product->save();
+    return 1;
+}
+```
+
+**Location:** `~/workspace/source/app/Http/Controllers/ProductController.php:482-503`
+</Accordion>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Categories & Brands" href="/features/categories-brands">
+    Learn about product categorization and brand management
+  </Card>
+  <Card title="Cart & Checkout" href="/features/cart-checkout">
+    Understand how products are added to cart and purchased
+  </Card>
+</CardGroup>

@@ -1,0 +1,628 @@
+---
+title: 'Delivery Boy System'
+description: 'Manage delivery personnel and track deliveries'
+icon: 'person-biking'
+---
+
+## Overview
+
+The Delivery Boy system enables you to manage your own fleet of delivery personnel. Track deliveries, manage earnings, handle collections, and monitor delivery performance all from one centralized system.
+
+## Features
+
+- **Delivery Personnel Management**: Add, edit, and manage delivery staff
+- **Order Assignment**: Assign orders to specific delivery boys
+- **Delivery Tracking**: Track real-time delivery status
+- **Collection Management**: Handle cash on delivery collections
+- **Earnings & Payments**: Commission-based or fixed payment system
+- **Cancellation Requests**: Handle delivery cancellation requests
+- **Performance Analytics**: Track delivery metrics
+- **Mobile App Integration**: Delivery boy mobile app support
+
+## Configuration
+
+### Accessing Delivery Boy Management
+
+<Steps>
+  <Step title="Login to Admin Panel">
+    Access your admin dashboard
+  </Step>
+  
+  <Step title="Navigate to Delivery Boys">
+    Go to **Staff** → **Delivery Boys**
+  </Step>
+  
+  <Step title="Create Delivery Boy">
+    Click **Add New Delivery Boy**
+  </Step>
+</Steps>
+
+## Controller Location
+
+```
+app/Http/Controllers/DeliveryBoyController.php
+```
+
+## Database Model
+
+```
+app/Models/DeliveryBoy.php
+```
+
+### Model Implementation
+
+```php app/Models/DeliveryBoy.php
+class DeliveryBoy extends Model
+{
+    public function user(){
+        return $this->belongsTo(User::class);
+    }
+}
+```
+
+## Creating a Delivery Boy
+
+```php app/Http/Controllers/DeliveryBoyController.php
+public function store(Request $request)
+{
+    $validated = $request->validate([
+        'name'          => 'required',
+        'email'         => 'required|unique:users|max:255',
+        'phone'         => 'required',
+        'country_id'    => 'required',
+        'state_id'       => 'required',
+        'city_id'       => 'required',
+    ]);
+
+    $country = Country::where('id', $request->country_id)->first();
+    $state = State::where('id', $request->state_id)->first();
+    $city = City::where('id', $request->city_id)->first();
+
+    // Create user account
+    $user                       = new User;
+    $user->user_type            = 'delivery_boy';
+    $user->name                 = $request->name;
+    $user->email                = $request->email;
+    $user->phone                = $request->phone;
+    $user->country              = $country->name;
+    $user->state                = $state->name;
+    $user->city                 = $city->name;
+    $user->avatar_original      = $request->avatar_original;
+    $user->address              = $request->address;
+    $user->email_verified_at    = date("Y-m-d H:i:s");
+    $user->password             = Hash::make($request->password);
+    $user->save();
+
+    // Create delivery boy profile
+    $delivery_boy = new DeliveryBoy;
+    $delivery_boy->user_id = $user->id;
+    $delivery_boy->save();
+
+    flash(translate('Delivery Boy has been created successfully'))->success();
+    return redirect()->route('delivery-boys.index');
+}
+```
+
+### Required Fields
+
+- **Name**: Full name of delivery person
+- **Email**: Unique email for login
+- **Phone**: Contact number
+- **Country**: Country of operation
+- **State**: State/Province
+- **City**: City of operation
+- **Address**: Residential address
+- **Avatar**: Profile photo (optional)
+- **Password**: Login password
+
+## Updating Delivery Boy
+
+```php app/Http/Controllers/DeliveryBoyController.php
+public function update(Request $request, $id)
+{
+    $delivery_boy = User::findOrFail($id);
+
+    $request->validate([
+        'name'       => 'required',
+        'email'      => 'required|unique:users,email,' . $delivery_boy->id,
+        'phone'      => 'required',
+        'country_id' => 'required',
+        'state_id'   => 'required',
+        'city_id'    => 'required',
+    ]);
+
+    $country = Country::where('id', $request->country_id)->first();
+    $state = State::where('id', $request->state_id)->first();
+    $city = City::where('id', $request->city_id)->first();
+
+    $delivery_boy->name             = $request->name;
+    $delivery_boy->email            = $request->email;
+    $delivery_boy->phone            = $request->phone;
+    $delivery_boy->country          = $country->name;
+    $delivery_boy->state            = $state->name;
+    $delivery_boy->city             = $city->name;
+    $delivery_boy->avatar_original  = $request->avatar_original;
+    $delivery_boy->address          = $request->address;
+
+    // Update password if provided
+    if (strlen($request->password) > 0) {
+        $delivery_boy->password = Hash::make($request->password);
+    }
+
+    $delivery_boy->save();
+
+    flash(translate('Delivery Boy has been updated successfully'))->success();
+    return back();
+}
+```
+
+## Ban/Unban Delivery Boy
+
+Temporarily disable delivery boy accounts:
+
+```php app/Http/Controllers/DeliveryBoyController.php
+public function ban($id)
+{
+    $delivery_boy = User::findOrFail($id);
+
+    if ($delivery_boy->banned == 1) {
+        $delivery_boy->banned = 0;
+        flash(translate('Delivery Boy UnBanned Successfully'))->success();
+    } else {
+        $delivery_boy->banned = 1;
+        flash(translate('Delivery Boy Banned Successfully'))->success();
+    }
+
+    $delivery_boy->save();
+
+    return back();
+}
+```
+
+## Payment Configuration
+
+### Payment Types
+
+Configure in business settings:
+
+```php
+get_setting('delivery_boy_payment_type')
+```
+
+Options:
+- **Commission**: Fixed commission per delivery
+- **Percentage**: Percentage of order value
+
+### Commission Amount
+
+```php
+get_setting('delivery_boy_commission')
+```
+
+## Collection Management
+
+For Cash on Delivery (COD) orders, track money collected:
+
+### Collection Form
+
+```php app/Http/Controllers/DeliveryBoyController.php
+public function order_collection_form(Request $request)
+{
+    $delivery_boy_info = DeliveryBoy::with('user')
+        ->where('user_id', $request->id)
+        ->first();
+
+    return view('backend.delivery_boys.order_collection_form', compact('delivery_boy_info'));
+}
+```
+
+### Collect from Delivery Boy
+
+```php app/Http/Controllers/DeliveryBoyController.php
+public function collection_from_delivery_boy(Request $request)
+{
+    $delivery_boy = DeliveryBoy::where('user_id', $request->delivery_boy_id)->first();
+
+    if ($request->payout_amount > $delivery_boy->total_collection) {
+        flash(translate('Collection Amount cannot Be Larger Than Collected Amount'))->error();
+        return redirect()->route('delivery-boys.index');
+    }
+
+    $delivery_boy->total_collection -= $request->payout_amount;
+
+    if ($delivery_boy->save()) {
+        $delivery_boy_collection = new DeliveryBoyCollection;
+        $delivery_boy_collection->user_id = $request->delivery_boy_id;
+        $delivery_boy_collection->collection_amount = $request->payout_amount;
+        $delivery_boy_collection->save();
+
+        flash(translate('Collection From Delivery Boy Successfully'))->success();
+    }
+
+    return redirect()->route('delivery-boys.index');
+}
+```
+
+## Earnings Management
+
+### Payment Form
+
+```php app/Http/Controllers/DeliveryBoyController.php
+public function delivery_earning_form(Request $request)
+{
+    $delivery_boy_info = DeliveryBoy::with('user')
+        ->where('user_id', $request->id)
+        ->first();
+
+    return view('backend.delivery_boys.delivery_earning_form', compact('delivery_boy_info'));
+}
+```
+
+### Pay to Delivery Boy
+
+```php app/Http/Controllers/DeliveryBoyController.php
+public function paid_to_delivery_boy(Request $request)
+{
+    $delivery_boy = DeliveryBoy::where('user_id', $request->delivery_boy_id)->first();
+
+    if ($request->paid_amount > $delivery_boy->total_earning) {
+        flash(translate('Paid Amount cannot Be Larger Than Payable Amount'))->error();
+        return redirect()->route('delivery-boys.index');
+    }
+
+    $delivery_boy->total_earning -= $request->paid_amount;
+
+    if ($delivery_boy->save()) {
+        $delivery_boy_payment = new DeliveryBoyPayment;
+        $delivery_boy_payment->user_id = $request->delivery_boy_id;
+        $delivery_boy_payment->payment = $request->paid_amount;
+        $delivery_boy_payment->save();
+
+        flash(translate('Pay To Delivery Boy Successfully'))->success();
+    }
+
+    return redirect()->route('delivery-boys.index');
+}
+```
+
+## Delivery History Tracking
+
+Automatically track deliveries and calculate earnings:
+
+```php app/Http/Controllers/DeliveryBoyController.php
+public function store_delivery_history($order)
+{
+    $delivery_history = new DeliveryHistory;
+
+    $delivery_history->order_id         = $order->id;
+    $delivery_history->delivery_boy_id  = Auth::user()->id;
+    $delivery_history->delivery_status  = $order->delivery_status;
+    $delivery_history->payment_type     = $order->payment_type;
+    
+    if ($order->delivery_status == 'delivered') {
+        $delivery_boy = DeliveryBoy::where('user_id', Auth::user()->id)->first();
+
+        // Calculate commission
+        if (get_setting('delivery_boy_payment_type') == 'commission') {
+            $delivery_history->earning = get_setting('delivery_boy_commission');
+            $delivery_boy->total_earning += get_setting('delivery_boy_commission');
+        }
+        
+        // Track COD collection
+        if ($order->payment_type == 'cash_on_delivery') {
+            $delivery_history->collection = $order->grand_total;
+            $delivery_boy->total_collection += $order->grand_total;
+
+            $order->payment_status = 'paid';
+            
+            // Calculate commission and club points
+            if ($order->commission_calculated == 0) {
+                calculateCommissionAffilationClubPoint($order);
+                $order->commission_calculated = 1;
+            }
+        }
+
+        $delivery_boy->save();
+    }
+    
+    $order->delivery_history_date = date("Y-m-d H:i:s");
+    $order->save();
+    $delivery_history->save();
+}
+```
+
+## Delivery Boy Panel Views
+
+### Assigned Deliveries
+
+```php app/Http/Controllers/DeliveryBoyController.php
+public function assigned_delivery()
+{
+    $order_query = Order::query();
+    $order_query->where('assign_delivery_boy', Auth::user()->id);
+
+    $order_query->where(function ($query) {
+        $query->where(function ($q) {
+            $q->where('delivery_status', 'pending')
+                ->where('cancel_request', '0');
+        })->orWhere(function ($q) {
+            $q->where('delivery_status', 'confirmed')
+                ->where('cancel_request', '0');
+        });
+    });
+
+    $assigned_deliveries = $order_query->paginate(10);
+
+    return view('delivery_boys.assigned_delivery', compact('assigned_deliveries'));
+}
+```
+
+### Picked Up Deliveries
+
+```php app/Http/Controllers/DeliveryBoyController.php
+public function pickup_delivery()
+{
+    $pickup_deliveries = Order::where('assign_delivery_boy', Auth::user()->id)
+        ->where('delivery_status', 'picked_up')
+        ->where('cancel_request', '0')
+        ->paginate(10);
+
+    return view('delivery_boys.pickup_delivery', compact('pickup_deliveries'));
+}
+```
+
+### On the Way Deliveries
+
+```php app/Http/Controllers/DeliveryBoyController.php
+public function on_the_way_deliveries()
+{
+    $on_the_way_deliveries = Order::where('assign_delivery_boy', Auth::user()->id)
+        ->where('delivery_status', 'on_the_way')
+        ->where('cancel_request', '0')
+        ->paginate(10);
+
+    return view('delivery_boys.on_the_way_delivery', compact('on_the_way_deliveries'));
+}
+```
+
+### Completed Deliveries
+
+```php app/Http/Controllers/DeliveryBoyController.php
+public function completed_delivery()
+{
+    $completed_deliveries = DeliveryHistory::where('delivery_boy_id', Auth::user()->id)
+        ->where('delivery_status', 'delivered')
+        ->paginate(10);
+
+    return view('delivery_boys.completed_delivery', compact('completed_deliveries'));
+}
+```
+
+### Total Collection
+
+```php app/Http/Controllers/DeliveryBoyController.php
+public function total_collection()
+{
+    $today_collections = DeliveryHistory::where('delivery_boy_id', Auth::user()->id)
+        ->where('delivery_status', 'delivered')
+        ->where('payment_type', 'cash_on_delivery')
+        ->paginate(10);
+
+    return view('delivery_boys.total_collection_list', compact('today_collections'));
+}
+```
+
+### Total Earnings
+
+```php app/Http/Controllers/DeliveryBoyController.php
+public function total_earning()
+{
+    $total_earnings = DeliveryHistory::where('delivery_boy_id', Auth::user()->id)
+        ->where('delivery_status', 'delivered')
+        ->paginate(10);
+
+    return view('delivery_boys.total_earning_list', compact('total_earnings'));
+}
+```
+
+## Cancel Request System
+
+Delivery boys can request order cancellation:
+
+```php app/Http/Controllers/DeliveryBoyController.php
+public function cancel_request($order_id)
+{
+    $order = Order::findOrFail($order_id);
+    $order->cancel_request = '1';
+    $order->cancel_request_at = date("Y-m-d H:i:s");
+    $order->save();
+
+    return back();
+}
+```
+
+### View Cancel Requests
+
+```php app/Http/Controllers/DeliveryBoyController.php
+public function cancel_request_list()
+{
+    $order_query = Order::query();
+    if (Auth::user()->user_type == 'delivery_boy') {
+        $order_query = $order_query->where('assign_delivery_boy', Auth::user()->id);
+    }
+    $order_query = $order_query->where('delivery_status', '!=', 'cancelled')
+        ->where('cancel_request', 1);
+    $order_query = $order_query->paginate(10);
+
+    $cancel_requests = $order_query;
+    return view('backend.delivery_boys.cancel_request_list', compact('cancel_requests'));
+}
+```
+
+## Permissions
+
+Delivery boy management requires specific permissions:
+
+```php app/Http/Controllers/DeliveryBoyController.php
+public function __construct()
+{
+    $this->middleware(['permission:view_all_delivery_boy'])->only('index');
+    $this->middleware(['permission:add_delivery_boy'])->only('create');
+    $this->middleware(['permission:edit_delivery_boy'])->only('edit');
+    $this->middleware(['permission:ban_delivery_boy'])->only('ban');
+    $this->middleware(['permission:collect_from_delivery_boy'])->only('order_collection_form');
+    $this->middleware(['permission:pay_to_delivery_boy'])->only('delivery_earning_form');
+    $this->middleware(['permission:delivery_boy_payment_history'])->only('delivery_boys_payment_histories');
+    $this->middleware(['permission:collected_histories_from_delivery_boy'])->only('delivery_boys_collection_histories');
+    $this->middleware(['permission:order_cancle_request_by_delivery_boy'])->only('cancel_request_list');
+    $this->middleware(['permission:delivery_boy_configuration'])->only('delivery_boy_configure');
+}
+```
+
+## API Integration
+
+For mobile app:
+
+```
+app/Http/Controllers/Api/V2/DeliveryBoyController.php
+```
+
+API Resources:
+
+```
+app/Http/Resources/V2/DeliveryBoyCollection.php
+app/Http/Resources/V2/DeliveryBoyPurchaseHistoryMiniCollection.php
+```
+
+## Delivery Workflow
+
+<Steps>
+  <Step title="Order Placed">
+    Customer places order
+  </Step>
+  
+  <Step title="Order Assignment">
+    Admin assigns order to delivery boy
+  </Step>
+  
+  <Step title="Order Confirmed">
+    Delivery boy confirms assignment (status: confirmed)
+  </Step>
+  
+  <Step title="Order Picked Up">
+    Delivery boy picks up order (status: picked_up)
+  </Step>
+  
+  <Step title="Out for Delivery">
+    Delivery boy on the way (status: on_the_way)
+  </Step>
+  
+  <Step title="Delivery Complete">
+    Order delivered (status: delivered)
+    - Earnings calculated
+    - COD collected (if applicable)
+  </Step>
+</Steps>
+
+## Best Practices
+
+<Warning>
+  **Delivery Boy Management Tips**
+  
+  - Conduct thorough background checks
+  - Provide proper training on app usage
+  - Set clear delivery time expectations
+  - Monitor delivery performance metrics
+  - Implement GPS tracking for deliveries
+  - Use order verification codes
+  - Regular payment cycles (weekly/bi-weekly)
+  - Handle customer complaints promptly
+  - Maintain insurance for delivery personnel
+  - Provide delivery equipment (bags, bikes)
+</Warning>
+
+## Payment Histories
+
+### View Payment History
+
+```php app/Http/Controllers/DeliveryBoyController.php
+public function delivery_boys_payment_histories()
+{
+    $delivery_boy_payment_query = DeliveryBoyPayment::query();
+    if (Auth::user()->user_type == 'delivery_boy') {
+        $delivery_boy_payment_query = $delivery_boy_payment_query->where('user_id', Auth::user()->id);
+    }
+    $delivery_boy_payment_query = $delivery_boy_payment_query->paginate(10);
+
+    $delivery_boy_payments = $delivery_boy_payment_query;
+
+    return view('backend.delivery_boys.delivery_boys_payment_list', compact('delivery_boy_payments'));
+}
+```
+
+### View Collection History
+
+```php app/Http/Controllers/DeliveryBoyController.php
+public function delivery_boys_collection_histories()
+{
+    $delivery_boy_collection_query = DeliveryBoyCollection::query();
+    if (Auth::user()->user_type == 'delivery_boy') {
+        $delivery_boy_collection_query = $delivery_boy_collection_query->where('user_id', Auth::user()->id);
+    }
+    $delivery_boy_collection_query = $delivery_boy_collection_query->paginate(10);
+
+    $delivery_boy_collections = $delivery_boy_collection_query;
+
+    return view('backend.delivery_boys.delivery_boys_collection_list', compact('delivery_boy_collections'));
+}
+```
+
+## Database Tables
+
+### delivery_boys
+
+- id
+- user_id (references users table)
+- total_collection
+- total_earning
+- created_at
+- updated_at
+
+### delivery_histories
+
+- id
+- order_id
+- delivery_boy_id
+- delivery_status
+- payment_type
+- collection (COD amount)
+- earning (commission amount)
+- created_at
+- updated_at
+
+### delivery_boy_payments
+
+- id
+- user_id
+- payment
+- created_at
+- updated_at
+
+### delivery_boy_collections
+
+- id
+- user_id
+- collection_amount
+- created_at
+- updated_at
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Shipping Carriers" icon="truck" href="/integrations/carriers">
+    Configure shipping methods
+  </Card>
+  <Card title="Pickup Points" icon="location-dot" href="/integrations/pickup-points">
+    Setup pickup locations
+  </Card>
+</CardGroup>

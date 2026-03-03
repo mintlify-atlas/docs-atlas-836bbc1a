@@ -1,0 +1,274 @@
+---
+title: 'Authentication'
+description: 'Authenticate users with Laravel Sanctum'
+---
+
+## Overview
+
+The Ecom API uses Laravel Sanctum for authentication. After successful login or signup, you'll receive an access token that must be included in subsequent API requests.
+
+## Authentication Flow
+
+1. User signs up or logs in
+2. API returns an access token
+3. Include token in `Authorization` header for protected endpoints
+
+## Register User
+
+<api method="POST" endpoint="/api/v2/auth/signup" auth="none">
+  Register a new user account
+</api>
+
+### Request
+
+<ParamField body="name" type="string" required>
+  User's full name
+</ParamField>
+
+<ParamField body="email_or_phone" type="string" required>
+  Email address or phone number (based on register_by)
+</ParamField>
+
+<ParamField body="register_by" type="string" required>
+  Registration method: `email` or `phone`
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Password (minimum 6 characters)
+</ParamField>
+
+<ParamField body="password_confirmation" type="string" required>
+  Password confirmation (must match password)
+</ParamField>
+
+<ParamField body="g-recaptcha-response" type="string">
+  reCAPTCHA response (if enabled)
+</ParamField>
+
+### Response
+
+<ResponseField name="result" type="boolean">
+  Success status
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Success or error message
+</ResponseField>
+
+<ResponseField name="access_token" type="string">
+  Bearer token for authentication
+</ResponseField>
+
+<ResponseField name="token_type" type="string">
+  Token type (always "Bearer")
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  User information
+  <Expandable>
+    <ResponseField name="id" type="integer">
+      User ID
+    </ResponseField>
+    <ResponseField name="type" type="string">
+      User type (customer, seller, delivery_boy)
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      User's name
+    </ResponseField>
+    <ResponseField name="email" type="string">
+      User's email
+    </ResponseField>
+    <ResponseField name="phone" type="string">
+      User's phone number
+    </ResponseField>
+    <ResponseField name="avatar_original" type="string">
+      Profile image URL
+    </ResponseField>
+    <ResponseField name="email_verified" type="boolean">
+      Email verification status
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash
+curl -X POST https://your-domain.com/api/v2/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "John Doe",
+    "email_or_phone": "john@example.com",
+    "register_by": "email",
+    "password": "password123",
+    "password_confirmation": "password123"
+  }'
+```
+
+## Login
+
+<api method="POST" endpoint="/api/v2/auth/login" auth="none">
+  Authenticate user and receive access token
+</api>
+
+### Request
+
+<ParamField body="email" type="string" required>
+  Email address or phone number
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  User password
+</ParamField>
+
+<ParamField body="login_by" type="string" required>
+  Login method: `email` or `phone`
+</ParamField>
+
+<ParamField body="user_type" type="string">
+  User type: `customer`, `seller`, or `delivery_boy`
+</ParamField>
+
+<ParamField body="identity_matrix" type="string">
+  Identity verification matrix
+</ParamField>
+
+### Response
+
+Same structure as signup response.
+
+### Example
+
+```bash
+curl -X POST https://your-domain.com/api/v2/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "john@example.com",
+    "password": "password123",
+    "login_by": "email"
+  }'
+```
+
+## Social Login
+
+<api method="POST" endpoint="/api/v2/auth/social-login" auth="none">
+  Login using social media providers
+</api>
+
+### Request
+
+<ParamField body="social_provider" type="string" required>
+  Provider name: `facebook`, `google`, `twitter`, or `apple`
+</ParamField>
+
+<ParamField body="access_token" type="string" required>
+  Access token from social provider
+</ParamField>
+
+<ParamField body="secret_token" type="string">
+  Secret token (required for Twitter)
+</ParamField>
+
+<ParamField body="provider" type="string" required>
+  Provider ID
+</ParamField>
+
+## Get User Info
+
+<api method="GET" endpoint="/api/v2/auth/user" auth="sanctum">
+  Get authenticated user information
+</api>
+
+### Example
+
+```bash
+curl -X GET https://your-domain.com/api/v2/auth/user \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+## Logout
+
+<api method="GET" endpoint="/api/v2/auth/logout" auth="sanctum">
+  Logout and invalidate access token
+</api>
+
+### Response
+
+```json
+{
+  "result": true,
+  "message": "Successfully logged out"
+}
+```
+
+## Email Verification
+
+### Resend Verification Code
+
+<api method="GET" endpoint="/api/v2/auth/resend_code" auth="sanctum">
+  Resend email or SMS verification code
+</api>
+
+### Confirm Verification Code
+
+<api method="POST" endpoint="/api/v2/auth/confirm_code" auth="sanctum">
+  Confirm verification code
+</api>
+
+<ParamField body="verification_code" type="string" required>
+  6-digit verification code
+</ParamField>
+
+## Password Reset
+
+### Request Password Reset
+
+<api method="POST" endpoint="/api/v2/auth/password/forget_request" auth="none">
+  Request password reset code
+</api>
+
+### Confirm Reset
+
+<api method="POST" endpoint="/api/v2/auth/password/confirm_reset" auth="none">
+  Reset password with verification code
+</api>
+
+### Resend Reset Code
+
+<api method="POST" endpoint="/api/v2/auth/password/resend_code" auth="none">
+  Resend password reset code
+</api>
+
+## Account Deletion
+
+<api method="GET" endpoint="/api/v2/auth/account-deletion" auth="sanctum">
+  Delete user account permanently
+</api>
+
+<Warning>
+This action is irreversible and will delete all user data including cart items and customer products.
+</Warning>
+
+## Get User by Access Token
+
+<api method="POST" endpoint="/api/v2/auth/info" auth="none">
+  Get user information by access token
+</api>
+
+<ParamField body="access_token" type="string" required>
+  User's access token
+</ParamField>
+
+## Using the Access Token
+
+Include the access token in the `Authorization` header for all protected endpoints:
+
+```bash
+Authorization: Bearer YOUR_ACCESS_TOKEN
+```
+
+Example:
+
+```bash
+curl -X GET https://your-domain.com/api/v2/cart-summary \
+  -H "Authorization: Bearer 1|abc123def456..."
+```

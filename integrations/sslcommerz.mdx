@@ -1,0 +1,476 @@
+---
+title: 'SSLCommerz Integration'
+description: 'Configure SSLCommerz payment gateway for Bangladesh'
+icon: 'lock'
+---
+
+## Overview
+
+SSLCommerz is Bangladesh's largest payment gateway provider, supporting multiple payment methods including cards, mobile wallets, internet banking, and mobile banking. The platform is essential for e-commerce businesses operating in Bangladesh.
+
+## Prerequisites
+
+- SSLCommerz merchant account ([Sign up here](https://www.sslcommerz.com/))
+- Store credentials (Store ID, Store Password)
+- Valid business registration in Bangladesh
+
+## Configuration
+
+### Step 1: Get SSLCommerz Credentials
+
+<Steps>
+  <Step title="Create Merchant Account">
+    Register at [SSLCommerz](https://www.sslcommerz.com/) and complete merchant onboarding
+  </Step>
+  
+  <Step title="Get Sandbox Credentials">
+    SSLCommerz provides sandbox credentials for testing
+  </Step>
+  
+  <Step title="Note Your Credentials">
+    You'll receive:
+    - Store ID
+    - Store Password
+    - API endpoint URLs
+  </Step>
+</Steps>
+
+### Step 2: Configure Environment Variables
+
+Add SSLCommerz credentials to your `.env` file:
+
+```bash .env
+# SSLCommerz Configuration (Add to .env if needed)
+# Note: SSLCommerz credentials are typically managed in business settings
+SSLCOMMERZ_STORE_ID=your_store_id
+SSLCOMMERZ_STORE_PASSWORD=your_store_password
+SSLCOMMERZ_SANDBOX=true  # Set to false for production
+```
+
+<Note>
+  SSLCommerz configuration may also be stored in database business settings. Check your admin panel for configuration options.
+</Note>
+
+## Implementation Details
+
+### Controller Location
+
+```
+app/Http/Controllers/Payment/SslcommerzController.php
+```
+
+### SSLCommerz Helper Class
+
+```
+app/Http/Controllers/SSLCommerz.php
+```
+
+### Payment Flow
+
+<Steps>
+  <Step title="Prepare Payment Data">
+    System prepares transaction data with customer and order information
+    
+    ```php app/Http/Controllers/Payment/SslcommerzController.php
+    public function pay(Request $request)
+    {
+        if (Session::has('payment_type')) {
+            if (Session::get('payment_type') == 'cart_payment') {
+                $combined_order = CombinedOrder::findOrFail($request->session()->get('combined_order_id'));
+                
+                $post_data = array();
+                $post_data['total_amount'] = $combined_order->grand_total;
+                $post_data['currency'] = "BDT";
+                $post_data['tran_id'] = substr(md5($request->session()->get('combined_order_id')), 0, 10);
+
+                $post_data['value_a'] = $post_data['tran_id'];
+                $post_data['value_b'] = $request->session()->get('combined_order_id');
+                $post_data['value_c'] = $request->session()->get('payment_type');
+            }
+        }
+    }
+    ```
+  </Step>
+  
+  <Step title="Add Customer Information">
+    Include customer details for payment processing
+    
+    ```php app/Http/Controllers/Payment/SslcommerzController.php
+    $user = Auth::user();
+    $post_data['cus_name'] = $user->name;
+    $post_data['cus_add1'] = $user->address;
+    $post_data['cus_city'] = $user->city;
+    $post_data['cus_postcode'] = $user->postal_code;
+    $post_data['cus_country'] = $user->country;
+    $post_data['cus_phone'] = $user->phone;
+    $post_data['cus_email'] = $user->email;
+    ```
+  </Step>
+  
+  <Step title="Configure Callback URLs">
+    Set success, fail, and cancel URLs
+    
+    ```php app/Http/Controllers/Payment/SslcommerzController.php
+    $server_name = $request->root() . "/";
+    $post_data['success_url'] = $server_name . "sslcommerz/success";
+    $post_data['fail_url'] = $server_name . "sslcommerz/fail";
+    $post_data['cancel_url'] = $server_name . "sslcommerz/cancel";
+    ```
+  </Step>
+  
+  <Step title="Initiate Payment Session">
+    Send request to SSLCommerz and redirect customer
+    
+    ```php app/Http/Controllers/Payment/SslcommerzController.php
+    $sslc = new SSLCommerz();
+    
+    // false: Redirect to SSLCOMMERZ gateway
+    // true: Show all payment gateways on your page
+    $payment_options = $sslc->initiate($post_data, false);
+    ```
+  </Step>
+  
+  <Step title="Handle Success Callback">
+    Process successful payment and complete order
+    
+    ```php app/Http/Controllers/Payment/SslcommerzController.php
+    public function success(Request $request)
+    {
+        $sslc = new SSLCommerz();
+        $tran_id = $request->value_a;
+        $payment = json_encode($request->all());
+
+        if (isset($request->value_c)) {
+            if ($request->value_c == 'cart_payment') {
+                return (new CheckoutController)->checkout_done($request->value_b, $payment);
+            } elseif ($request->value_c == 'wallet_payment') {
+                $data['amount'] = $request->value_b;
+                $data['payment_method'] = 'sslcommerz';
+                Auth::login(User::find($request->value_d));
+                return (new WalletController)->wallet_payment_done($data, $payment);
+            }
+        }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Currency Support
+
+<Warning>
+  **SSLCommerz only supports BDT (Bangladeshi Taka)**
+  
+  ```php
+  $post_data['currency'] = "BDT";
+  ```
+  
+  Ensure your system default currency is set to BDT when using SSLCommerz.
+</Warning>
+
+## Custom Values
+
+SSLCommerz allows passing custom values through the payment flow:
+
+```php
+$post_data['value_a'] = $post_data['tran_id'];       // Transaction ID
+$post_data['value_b'] = $order_id;                   // Order ID or amount
+$post_data['value_c'] = $payment_type;               // Payment type
+$post_data['value_d'] = $user_id;                    // User ID (for wallet/packages)
+```
+
+These values are returned in the callback URL and help identify the transaction.
+
+## Payment Methods Supported
+
+SSLCommerz supports various payment methods in Bangladesh:
+
+- **Credit/Debit Cards**: Visa, Mastercard, Amex
+- **Mobile Banking**: bKash, Rocket, Nagad, Upay
+- **Internet Banking**: All major Bangladeshi banks
+- **Mobile Wallets**: OK Wallet, mCash
+
+## Routes Configuration
+
+Required routes in `routes/web.php`:
+
+```php routes/web.php
+// SSLCommerz Payment Routes
+Route::post('sslcommerz/pay', [SslcommerzController::class, 'pay'])->name('sslcommerz.pay');
+Route::post('sslcommerz/success', [SslcommerzController::class, 'success'])->name('sslcommerz.success');
+Route::post('sslcommerz/fail', [SslcommerzController::class, 'fail'])->name('sslcommerz.fail');
+Route::post('sslcommerz/cancel', [SslcommerzController::class, 'cancel'])->name('sslcommerz.cancel');
+Route::post('sslcommerz/ipn', [SslcommerzController::class, 'ipn'])->name('sslcommerz.ipn');
+```
+
+## Session Management
+
+<Note>
+  SSLCommerz controller uses PHP native sessions:
+  
+  ```php
+  session_start();
+  ```
+  
+  This is declared at the top of the controller for compatibility with SSLCommerz SDK.
+</Note>
+
+## Supported Payment Types
+
+### Cart Payment
+
+```php
+if (Session::get('payment_type') == 'cart_payment') {
+    $combined_order = CombinedOrder::findOrFail($request->session()->get('combined_order_id'));
+    $post_data['total_amount'] = $combined_order->grand_total;
+    $post_data['currency'] = "BDT";
+}
+```
+
+### Wallet Payment
+
+```php
+elseif (Session::get('payment_type') == 'wallet_payment') {
+    $post_data['total_amount'] = $request->session()->get('payment_data')['amount'];
+    $post_data['currency'] = "BDT";
+    $post_data['value_d'] = Auth::user()->id;
+}
+```
+
+### Package Payments
+
+```php
+elseif (Session::get('payment_type') == 'customer_package_payment') {
+    $customer_package = CustomerPackage::findOrFail(Session::get('payment_data')['customer_package_id']);
+    $post_data['total_amount'] = $customer_package->amount;
+    $post_data['currency'] = "BDT";
+}
+```
+
+## Error Handling
+
+### Payment Failure
+
+```php app/Http/Controllers/Payment/SslcommerzController.php
+public function fail(Request $request)
+{
+    $request->session()->forget('order_id');
+    $request->session()->forget('payment_data');
+    flash(translate('Payment Failed'))->warning();
+    return redirect()->route('home');
+}
+```
+
+### Payment Cancellation
+
+```php app/Http/Controllers/Payment/SslcommerzController.php
+public function cancel(Request $request)
+{
+    $request->session()->forget('order_id');
+    $request->session()->forget('payment_data');
+    flash(translate('Payment cancelled'))->error();
+    return redirect()->route('home');
+}
+```
+
+## IPN (Instant Payment Notification)
+
+SSLCommerz sends IPN for payment verification:
+
+```php app/Http/Controllers/Payment/SslcommerzController.php
+public function ipn(Request $request)
+{
+    if ($request->input('tran_id')) {
+        $tran_id = $request->input('tran_id');
+        
+        $combined_order = CombinedOrder::findOrFail($request->session()->get('combined_order_id'));
+
+        if ($order->payment_status == 'Pending') {
+            $sslc = new SSLCommerz();
+            $validation = $sslc->orderValidate($tran_id, $order->grand_total, 'BDT', $request->all());
+            
+            if ($validation == TRUE) {
+                echo "Transaction is successfully Complete";
+            } else {
+                echo "validation Fail";
+            }
+        }
+    }
+}
+```
+
+<Note>
+  Configure IPN URL in SSLCommerz merchant panel:
+  ```
+  https://yourdomain.com/sslcommerz/ipn
+  ```
+</Note>
+
+## Testing
+
+### Sandbox Environment
+
+SSLCommerz provides sandbox environment for testing:
+
+<Steps>
+  <Step title="Use Sandbox Credentials">
+    Request sandbox credentials from SSLCommerz support
+  </Step>
+  
+  <Step title="Configure Sandbox Mode">
+    Set sandbox mode in business settings or `.env`
+  </Step>
+  
+  <Step title="Test Payments">
+    Use provided test card numbers and mobile banking test credentials
+  </Step>
+</Steps>
+
+### Test Card Numbers
+
+SSLCommerz provides test cards for sandbox:
+
+```
+Card Number: 4111 1111 1111 1111
+Expiry: Any future date
+CVV: Any 3 digits
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Payment Initiation Failed">
+    **Cause**: Invalid credentials or incorrect payload
+    
+    **Solution**:
+    - Verify Store ID and Store Password
+    - Check all required fields are provided
+    - Ensure customer information is complete
+    - Verify callback URLs are accessible
+  </Accordion>
+  
+  <Accordion title="Currency Error">
+    **Cause**: Non-BDT currency used
+    
+    **Solution**:
+    ```php
+    // Must use BDT
+    $post_data['currency'] = "BDT";
+    ```
+  </Accordion>
+  
+  <Accordion title="Callback Not Working">
+    **Cause**: URL configuration issue
+    
+    **Solution**:
+    - Ensure URLs use HTTPS in production
+    - Check routes are properly registered
+    - Verify `.htaccess` configuration
+    - Test URLs are publicly accessible
+  </Accordion>
+  
+  <Accordion title="Transaction ID Duplicate">
+    **Cause**: Same transaction ID used twice
+    
+    **Solution**:
+    ```php
+    // Generate unique transaction ID
+    $post_data['tran_id'] = substr(md5($order_id . time()), 0, 10);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## User Re-authentication
+
+For wallet and package payments, the system re-authenticates users:
+
+```php
+if ($request->value_c == 'wallet_payment') {
+    Auth::login(User::find($request->value_d));
+    return (new WalletController)->wallet_payment_done($data, $payment);
+}
+```
+
+This ensures the user session is maintained after payment redirect.
+
+## Going Live
+
+<Steps>
+  <Step title="Complete Merchant Verification">
+    Submit all required documents to SSLCommerz:
+    - Trade license
+    - Bank account details
+    - NID/Passport
+    - Business registration
+  </Step>
+  
+  <Step title="Get Live Credentials">
+    After approval, receive production Store ID and Password
+  </Step>
+  
+  <Step title="Update Configuration">
+    Replace sandbox credentials with production credentials
+  </Step>
+  
+  <Step title="Configure Live URLs">
+    Update IPN and callback URLs in SSLCommerz merchant panel
+  </Step>
+  
+  <Step title="Test Live Payment">
+    Make a small test transaction with real payment method
+  </Step>
+</Steps>
+
+## Security Best Practices
+
+<Warning>
+  **Security Recommendations**
+  
+  - Never expose Store Password in frontend code
+  - Always use HTTPS for production
+  - Validate transaction amounts server-side
+  - Implement IPN signature verification
+  - Log all payment transactions
+  - Set up fraud monitoring
+  - Regularly rotate credentials
+</Warning>
+
+## Integration Modes
+
+SSLCommerz offers two integration modes:
+
+### Redirect Mode (Recommended)
+
+```php
+$payment_options = $sslc->initiate($post_data, false);
+```
+
+Customer is redirected to SSLCommerz hosted payment page.
+
+### Popup/Embedded Mode
+
+```php
+$payment_options = $sslc->initiate($post_data, true);
+```
+
+Payment options displayed on your website.
+
+## Minimum Transaction Amount
+
+<Note>
+  SSLCommerz has a minimum transaction amount of **BDT 10**
+  
+  ```php
+  $post_data['total_amount'] = $combined_order->grand_total; // Must be >= 10
+  ```
+</Note>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Payment Overview" icon="credit-card" href="/integrations/payments-overview">
+    Learn about payment architecture
+  </Card>
+  <Card title="Razorpay Integration" icon="landmark" href="/integrations/razorpay">
+    Configure Razorpay for India
+  </Card>
+</CardGroup>

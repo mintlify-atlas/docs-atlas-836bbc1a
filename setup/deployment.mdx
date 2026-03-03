@@ -1,0 +1,627 @@
+---
+title: Deployment Guide
+description: Deploy Ecom e-commerce platform to production environment
+---
+
+## Pre-Deployment Checklist
+
+Before deploying Ecom to production, ensure you have completed these critical steps:
+
+<Steps>
+  <Step title="Environment Configuration">
+    <Checklist>
+      - [ ] Set `APP_ENV=production` in `.env`
+      - [ ] Set `APP_DEBUG=false` in `.env`
+      - [ ] Configure production `APP_URL`
+      - [ ] Generate unique `APP_KEY`
+      - [ ] Set up production database credentials
+      - [ ] Configure production mail settings
+    </Checklist>
+  </Step>
+
+  <Step title="Security Review">
+    <Checklist>
+      - [ ] All sensitive data in `.env` file
+      - [ ] `.env` file not in version control
+      - [ ] Strong database passwords set
+      - [ ] HTTPS/SSL certificate configured
+      - [ ] File permissions properly set
+    </Checklist>
+  </Step>
+
+  <Step title="Performance Optimization">
+    <Checklist>
+      - [ ] Cache configuration files
+      - [ ] Cache routes
+      - [ ] Optimize Composer autoloader
+      - [ ] Configure Redis for caching
+      - [ ] Set up queue workers
+    </Checklist>
+  </Step>
+
+  <Step title="Testing">
+    <Checklist>
+      - [ ] All features tested in staging
+      - [ ] Payment gateways tested
+      - [ ] Database migrations tested
+      - [ ] Backup procedures tested
+    </Checklist>
+  </Step>
+</Steps>
+
+## Server Requirements
+
+### Minimum Server Specifications
+
+<CardGroup cols={2}>
+  <Card title="CPU" icon="microchip">
+    2+ cores recommended
+  </Card>
+  <Card title="RAM" icon="memory">
+    4GB minimum, 8GB+ recommended
+  </Card>
+  <Card title="Storage" icon="hard-drive">
+    20GB minimum, SSD recommended
+  </Card>
+  <Card title="Bandwidth" icon="network-wired">
+    Unmetered or high allowance
+  </Card>
+</CardGroup>
+
+### Software Requirements
+
+<Info>
+**Required Software:**
+- PHP 8.0.2 or higher
+- MySQL 5.7+ or PostgreSQL 9.6+
+- Nginx or Apache web server
+- Composer
+- Redis (recommended)
+- Supervisor (for queue workers)
+- SSL certificate (Let's Encrypt recommended)
+</Info>
+
+### Required PHP Extensions
+
+From `composer.json:7`, ensure these extensions are installed:
+
+```bash
+php -m | grep -E 'openssl|pdo|mbstring|tokenizer|xml|ctype|json|bcmath|fileinfo|gd'
+```
+
+Required extensions:
+- OpenSSL, PDO, Mbstring, Tokenizer
+- XML, Ctype, JSON, BCMath
+- Fileinfo, GD (for image processing)
+
+## Deployment Methods
+
+### Method 1: Manual Deployment
+
+<Steps>
+  <Step title="Upload Application Files">
+    Upload your application to the server:
+    
+    ```bash
+    # Using rsync
+    rsync -avz --exclude 'node_modules' --exclude '.git' \
+      /local/path/to/ecom/ user@server:/var/www/ecom/
+    
+    # Or using FTP/SFTP client
+    ```
+  </Step>
+
+  <Step title="Install Dependencies">
+    Install PHP dependencies:
+    
+    ```bash
+    cd /var/www/ecom
+    composer install --no-dev --optimize-autoloader
+    ```
+    
+    <Note>
+    The `--no-dev` flag excludes development dependencies, and `--optimize-autoloader` optimizes the autoloader for production.
+    </Note>
+  </Step>
+
+  <Step title="Configure Environment">
+    Set up production environment:
+    
+    ```bash
+    cp .env.example .env
+    nano .env
+    ```
+    
+    Update these critical values:
+    
+    ```bash .env
+    APP_ENV=production
+    APP_DEBUG=false
+    APP_URL=https://yourdomain.com
+    
+    DB_CONNECTION=mysql
+    DB_HOST=your-db-host
+    DB_DATABASE=ecom_production
+    DB_USERNAME=ecom_user
+    DB_PASSWORD=secure_password
+    
+    CACHE_DRIVER=redis
+    SESSION_DRIVER=redis
+    QUEUE_CONNECTION=redis
+    
+    REDIS_HOST=127.0.0.1
+    REDIS_PASSWORD=null
+    REDIS_PORT=6379
+    ```
+  </Step>
+
+  <Step title="Generate Application Key">
+    ```bash
+    php artisan key:generate
+    ```
+  </Step>
+
+  <Step title="Run Database Migrations">
+    ```bash
+    php artisan migrate --force
+    ```
+    
+    <Warning>
+    The `--force` flag is required in production. Always backup your database first!
+    </Warning>
+  </Step>
+
+  <Step title="Set File Permissions">
+    ```bash
+    sudo chown -R www-data:www-data /var/www/ecom
+    sudo chmod -R 755 /var/www/ecom
+    sudo chmod -R 775 /var/www/ecom/storage
+    sudo chmod -R 775 /var/www/ecom/bootstrap/cache
+    ```
+  </Step>
+
+  <Step title="Optimize Application">
+    ```bash
+    php artisan config:cache
+    php artisan route:cache
+    php artisan view:cache
+    composer dump-autoload --optimize
+    ```
+  </Step>
+</Steps>
+
+### Method 2: Git-Based Deployment
+
+<Steps>
+  <Step title="Clone Repository">
+    ```bash
+    cd /var/www
+    git clone <repository-url> ecom
+    cd ecom
+    ```
+  </Step>
+
+  <Step title="Checkout Production Branch">
+    ```bash
+    git checkout main
+    # or
+    git checkout production
+    ```
+  </Step>
+
+  <Step title="Run Deployment Script">
+    Create a deployment script `deploy.sh`:
+    
+    ```bash deploy.sh
+    #!/bin/bash
+    
+    echo "Starting deployment..."
+    
+    # Pull latest changes
+    git pull origin main
+    
+    # Install/update dependencies
+    composer install --no-dev --optimize-autoloader
+    
+    # Run migrations
+    php artisan migrate --force
+    
+    # Clear and cache
+    php artisan config:cache
+    php artisan route:cache
+    php artisan view:cache
+    
+    # Restart queue workers
+    php artisan queue:restart
+    
+    echo "Deployment completed!"
+    ```
+    
+    Make it executable:
+    ```bash
+    chmod +x deploy.sh
+    ./deploy.sh
+    ```
+  </Step>
+</Steps>
+
+## Web Server Configuration
+
+### Nginx Configuration
+
+Create Nginx server block `/etc/nginx/sites-available/ecom`:
+
+```nginx
+server {
+    listen 80;
+    listen [::]:80;
+    server_name yourdomain.com www.yourdomain.com;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name yourdomain.com www.yourdomain.com;
+    root /var/www/ecom/public;
+
+    # SSL Configuration
+    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    # Logs
+    access_log /var/log/nginx/ecom-access.log;
+    error_log /var/log/nginx/ecom-error.log;
+
+    # Index
+    index index.php index.html;
+
+    # Charset
+    charset utf-8;
+
+    # Disable file access
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+
+    # Main location
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    # PHP-FPM
+    location ~ \.php$ {
+        fastcgi_pass unix:/var/run/php/php8.0-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+    add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'" always;
+
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json;
+}
+```
+
+Enable the site:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/ecom /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### Apache Configuration
+
+Create Apache virtual host `/etc/apache2/sites-available/ecom.conf`:
+
+```apache
+<VirtualHost *:80>
+    ServerName yourdomain.com
+    ServerAlias www.yourdomain.com
+    Redirect permanent / https://yourdomain.com/
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName yourdomain.com
+    ServerAlias www.yourdomain.com
+    DocumentRoot /var/www/ecom/public
+
+    # SSL Configuration
+    SSLEngine on
+    SSLCertificateFile /etc/letsencrypt/live/yourdomain.com/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/yourdomain.com/privkey.pem
+
+    <Directory /var/www/ecom/public>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    # Logs
+    ErrorLog ${APACHE_LOG_DIR}/ecom-error.log
+    CustomLog ${APACHE_LOG_DIR}/ecom-access.log combined
+</VirtualHost>
+```
+
+Enable the site:
+
+```bash
+sudo a2ensite ecom.conf
+sudo a2enmod rewrite ssl
+sudo systemctl reload apache2
+```
+
+## SSL Certificate Setup
+
+Install SSL certificate using Let's Encrypt:
+
+```bash
+# Install Certbot
+sudo apt-get update
+sudo apt-get install certbot python3-certbot-nginx
+
+# Obtain certificate
+sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
+
+# Auto-renewal (already set up)
+sudo certbot renew --dry-run
+```
+
+## Queue Workers Setup
+
+Ecom uses queues for background processing. Set up Supervisor to manage queue workers:
+
+<Steps>
+  <Step title="Install Supervisor">
+    ```bash
+    sudo apt-get install supervisor
+    ```
+  </Step>
+
+  <Step title="Create Worker Configuration">
+    Create `/etc/supervisor/conf.d/ecom-worker.conf`:
+    
+    ```ini
+    [program:ecom-worker]
+    process_name=%(program_name)s_%(process_num)02d
+    command=php /var/www/ecom/artisan queue:work redis --sleep=3 --tries=3 --max-time=3600
+    autostart=true
+    autorestart=true
+    stopasgroup=true
+    killasgroup=true
+    user=www-data
+    numprocs=4
+    redirect_stderr=true
+    stdout_logfile=/var/www/ecom/storage/logs/worker.log
+    stopwaitsecs=3600
+    ```
+  </Step>
+
+  <Step title="Start Supervisor">
+    ```bash
+    sudo supervisorctl reread
+    sudo supervisorctl update
+    sudo supervisorctl start ecom-worker:*
+    ```
+  </Step>
+
+  <Step title="Verify Workers">
+    ```bash
+    sudo supervisorctl status
+    ```
+  </Step>
+</Steps>
+
+## Scheduled Tasks (Cron)
+
+Set up Laravel's task scheduler:
+
+```bash
+crontab -e
+```
+
+Add this line:
+
+```cron
+* * * * * cd /var/www/ecom && php artisan schedule:run >> /dev/null 2>&1
+```
+
+## Performance Optimization
+
+### Caching Strategy
+
+<CodeGroup>
+```bash Configuration Cache
+php artisan config:cache
+```
+
+```bash Route Cache
+php artisan route:cache
+```
+
+```bash View Cache
+php artisan view:cache
+```
+
+```bash Optimize Autoloader
+composer dump-autoload --optimize --classmap-authoritative
+```
+</CodeGroup>
+
+### Redis Configuration
+
+Update `.env` for Redis:
+
+```bash .env
+CACHE_DRIVER=redis
+SESSION_DRIVER=redis
+QUEUE_CONNECTION=redis
+
+REDIS_HOST=127.0.0.1
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+```
+
+### OPcache Configuration
+
+Enable OPcache in `php.ini`:
+
+```ini
+opcache.enable=1
+opcache.memory_consumption=128
+opcache.interned_strings_buffer=8
+opcache.max_accelerated_files=10000
+opcache.revalidate_freq=2
+opcache.fast_shutdown=1
+```
+
+## Monitoring & Logging
+
+### Application Logs
+
+Logs are stored in `storage/logs/laravel.log`. Monitor them:
+
+```bash
+tail -f /var/www/ecom/storage/logs/laravel.log
+```
+
+### Error Tracking
+
+Consider integrating error tracking services:
+
+- Sentry
+- Bugsnag
+- Rollbar
+
+### Server Monitoring
+
+Monitor server resources:
+
+```bash
+# CPU and Memory
+htop
+
+# Disk usage
+df -h
+
+# Database connections
+mysqladmin -u root -p processlist
+```
+
+## Backup Strategy
+
+### Database Backups
+
+Create automated backup script `/var/www/ecom/backup.sh`:
+
+```bash
+#!/bin/bash
+
+BACKUP_DIR="/var/backups/ecom"
+DATE=$(date +%Y%m%d_%H%M%S)
+
+# Create backup directory
+mkdir -p $BACKUP_DIR
+
+# Backup database
+mysqldump -u username -ppassword ecom_production > $BACKUP_DIR/db_$DATE.sql
+
+# Backup files
+tar -czf $BACKUP_DIR/files_$DATE.tar.gz /var/www/ecom/storage
+
+# Remove backups older than 30 days
+find $BACKUP_DIR -type f -mtime +30 -delete
+```
+
+Schedule in cron:
+
+```cron
+0 2 * * * /var/www/ecom/backup.sh
+```
+
+## Security Hardening
+
+<Warning>
+**Critical Security Steps:**
+
+1. **Environment File**
+   ```bash
+   chmod 600 /var/www/ecom/.env
+   ```
+
+2. **Disable Directory Listing**
+   - Already handled by Nginx/Apache config
+
+3. **Hide Server Information**
+   ```nginx
+   server_tokens off;
+   ```
+
+4. **Firewall Configuration**
+   ```bash
+   sudo ufw allow 80/tcp
+   sudo ufw allow 443/tcp
+   sudo ufw enable
+   ```
+
+5. **Regular Updates**
+   ```bash
+   composer update --no-dev
+   php artisan migrate --force
+   ```
+</Warning>
+
+## Rollback Procedure
+
+If deployment fails:
+
+```bash
+# Restore from Git
+git reset --hard previous_commit_hash
+
+# Restore database from backup
+mysql -u username -p database_name < backup.sql
+
+# Clear caches
+php artisan optimize:clear
+
+# Restart services
+sudo supervisorctl restart ecom-worker:*
+sudo systemctl reload nginx
+```
+
+## Post-Deployment Verification
+
+<Checklist>
+  - [ ] Homepage loads correctly
+  - [ ] HTTPS is working (SSL certificate valid)
+  - [ ] Database connection is working
+  - [ ] Email sending works
+  - [ ] File uploads work
+  - [ ] Payment gateways respond
+  - [ ] Queue workers are running
+  - [ ] Cron jobs are scheduled
+  - [ ] Error logs are accessible
+  - [ ] Backups are running
+</Checklist>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Setup" icon="server" href="/setup/environment">
+    Review environment configuration
+  </Card>
+  <Card title="Database Setup" icon="database" href="/setup/database">
+    Database optimization tips
+  </Card>
+</CardGroup>

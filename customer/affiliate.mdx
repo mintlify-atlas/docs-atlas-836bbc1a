@@ -1,0 +1,472 @@
+---
+title: Affiliate Guide
+description: Earn money by referring customers and sharing products on Ecom
+---
+
+## Overview
+
+The affiliate program allows you to earn commissions by referring new customers and sharing products. This guide covers joining the program, generating referrals, and earning commissions.
+
+<Note>
+The affiliate system must be activated by the platform administrator. Check if the program is available on your platform.
+</Note>
+
+## Affiliate Program Benefits
+
+- **Earn Commissions**: Get paid for successful referrals
+- **Multiple Commission Types**: Earn from customer registrations and product sharing
+- **Track Performance**: Monitor clicks, conversions, and earnings
+- **Flexible Withdrawals**: Request payouts when you reach minimum threshold
+- **No Limits**: Unlimited earning potential
+
+## Joining the Affiliate Program
+
+### Eligibility
+
+To join the affiliate program:
+
+- Must have an active customer account
+- Complete the affiliate verification form
+- Submit required documentation
+- Wait for admin approval
+
+### Application Process
+
+**Route**: `/affiliate/apply`
+
+<Steps>
+  <Step title="Access Application Form">
+    Navigate to the affiliate section or click "Become an Affiliate"
+    
+    **Screenshot Description**: Affiliate application page with registration form
+  </Step>
+  
+  <Step title="Login or Register">
+    If not logged in:
+    - Create a customer account first
+    - Or login to existing account
+  </Step>
+  
+  <Step title="Complete Verification Form">
+    Fill out required information based on platform requirements:
+    - **Text Fields**: Business information, address, contact details
+    - **Select Fields**: Business type, marketing methods
+    - **Multi-select**: Social media platforms you'll use
+    - **File Uploads**: ID verification, business documents
+    
+    **Route**: POST `/affiliate/store`
+  </Step>
+  
+  <Step title="Submit Application">
+    Click "Submit Application"
+  </Step>
+  
+  <Step title="Await Approval">
+    - Admin receives notification of your application
+    - You receive notification when approved/rejected
+    - Approval typically takes 1-3 business days
+  </Step>
+</Steps>
+
+<Note>
+If you already have a customer account, the affiliate application links to your existing account. If registering fresh, you'll create login credentials during the application.
+</Note>
+
+## Understanding Commission Types
+
+The platform may offer different affiliate commission structures:
+
+### 1. User Registration First Purchase
+
+Earn commission when someone you refer makes their first purchase.
+
+**How it works:**
+- Share your unique referral link
+- New user registers using your link
+- User makes their first purchase
+- You earn a percentage of that order total
+
+**Commission calculation:**
+```
+Commission = (Percentage × Order Total) / 100
+```
+
+<Tip>
+This commission type rewards you for bringing new customers to the platform. Focus on reaching potential new users.
+</Tip>
+
+### 2. Product Sharing
+
+Earn commission when someone purchases a product you shared.
+
+**How it works:**
+- Generate a product-specific referral link
+- Share the link (social media, blog, email, etc.)
+- Customer clicks your link and purchases
+- You earn commission on that product sale
+
+**Commission types:**
+- **Fixed Amount**: Earn a set amount per sale
+- **Percentage**: Earn percentage of product price
+
+<Note>
+Only one product sharing method is active at a time (either product sharing or category-wise affiliate).
+</Note>
+
+### 3. Category-Wise Affiliate
+
+Earn different commission rates based on product category.
+
+**How it works:**
+- Different categories have different commission rates
+- Share products from high-commission categories
+- Earn based on category-specific rates
+
+**Commission structure:**
+- Each category has its own rate
+- Can be fixed amount or percentage
+- Automatically calculated based on product category
+
+## Your Affiliate Dashboard
+
+**Route**: `/affiliate/user/index`
+
+### Dashboard Metrics
+
+Your dashboard displays:
+
+- **Total Clicks**: Number of times your links were clicked
+- **Total Orders**: Orders generated through your links
+- **Delivered Orders**: Successfully completed orders
+- **Cancelled Orders**: Orders that were cancelled
+- **Total Earnings**: Commission earned
+- **Available Balance**: Amount ready for withdrawal
+- **Pending Balance**: Commission from pending orders
+
+### Performance Filters
+
+View statistics for:
+- **Today**: Today's performance
+- **Last 7 Days**: Weekly stats
+- **Last 30 Days**: Monthly overview
+- **All Time**: Total performance
+
+<Steps>
+  <Step title="Access Affiliate Dashboard">
+    Login and navigate to Affiliate section
+  </Step>
+  
+  <Step title="Select Time Period">
+    Choose reporting period from dropdown
+  </Step>
+  
+  <Step title="Review Metrics">
+    Analyze your performance data
+  </Step>
+</Steps>
+
+## Generating Referral Links
+
+### Your Unique Referral Code
+
+Every affiliate receives a unique referral code:
+
+- Automatically generated upon approval
+- Used to track your referrals
+- Included in all your referral links
+
+### Customer Referral Links
+
+For referring new customers:
+
+```
+https://example.com/register?ref=YOUR_REFERRAL_CODE
+```
+
+Share this link:
+- Social media posts
+- Email campaigns
+- Blog articles
+- YouTube descriptions
+- Forum signatures
+
+### Product Referral Links
+
+For sharing specific products:
+
+```
+https://example.com/product/product-name?ref=YOUR_REFERRAL_CODE
+```
+
+<Steps>
+  <Step title="Browse Products">
+    Find products you want to promote
+  </Step>
+  
+  <Step title="Generate Link">
+    Click "Share" or "Get Affiliate Link" on product page
+  </Step>
+  
+  <Step title="Copy Link">
+    Copy your unique affiliate link
+  </Step>
+  
+  <Step title="Share Link">
+    Distribute through your marketing channels
+  </Step>
+</Steps>
+
+## Tracking Your Referrals
+
+### Affiliate Logs
+
+**Route**: `/affiliate/user/index`
+
+View detailed logs of all your referrals:
+
+- **Referral Type**: Registration or product sharing
+- **Customer/Order**: Who purchased or registered
+- **Product**: If product sharing
+- **Order Amount**: Total order value
+- **Commission Earned**: Your earnings
+- **Date**: When commission was earned
+- **Status**: Pending, confirmed, delivered, cancelled
+
+### Affiliate Statistics
+
+Track key performance indicators:
+
+```
+Number of Clicks → Number of Orders → Number Delivered → Earnings
+```
+
+**Conversion funnel:**
+1. Clicks on your links
+2. Orders placed
+3. Orders delivered
+4. Commission earned
+5. Commission paid
+
+<Tip>
+Optimize your conversion rate by:
+- Sharing high-quality products
+- Writing honest reviews
+- Targeting the right audience
+- Using compelling call-to-action
+- Testing different platforms
+</Tip>
+
+## Earning Commissions
+
+### When Commissions Are Credited
+
+Commissions are added to your balance when:
+
+1. **Order is Placed**: Tracked in system
+2. **Payment is Confirmed**: Order marked as "Paid"
+3. **Commission Calculated**: Automatic calculation
+4. **Balance Updated**: Added to your affiliate balance
+
+### Commission Validation
+
+If validation time is configured:
+
+- Commissions may have a holding period
+- Ensures orders aren't cancelled or returned
+- Balance becomes available after validation time
+- Protects against fraudulent referrals
+
+## Withdrawing Earnings
+
+### Payment Settings
+
+**Route**: `/affiliate/user/payment-settings`
+
+<Steps>
+  <Step title="Configure Payment Methods">
+    Navigate to Affiliate > Payment Settings
+  </Step>
+  
+  <Step title="Add Payment Information">
+    Enter details for:
+    - **PayPal**: PayPal email address
+    - **Bank Transfer**: Account number, routing number, bank name
+    - Other available methods
+    
+    **Screenshot Description**: Payment settings page with PayPal and bank information fields
+  </Step>
+  
+  <Step title="Save Settings">
+    **Route**: POST `/affiliate/user/payment-settings/store`
+  </Step>
+</Steps>
+
+### Requesting Withdrawal
+
+**Route**: `/affiliate/user/withdraw-request`
+
+<Steps>
+  <Step title="Check Available Balance">
+    Ensure you meet minimum withdrawal amount
+  </Step>
+  
+  <Step title="Access Withdrawal Page">
+    Navigate to Affiliate > Withdraw
+  </Step>
+  
+  <Step title="Enter Amount">
+    Specify how much you want to withdraw
+  </Step>
+  
+  <Step title="Submit Request">
+    **Route**: POST `/affiliate/user/withdraw-request/store`
+  </Step>
+  
+  <Step title="Automatic Deduction">
+    - Amount is deducted from your balance immediately
+    - Prevents duplicate withdrawal requests
+    - Request status: Pending (`status = 0`)
+  </Step>
+  
+  <Step title="Admin Processing">
+    Admin reviews and processes your request
+  </Step>
+  
+  <Step title="Receive Payment">
+    Funds transferred via your chosen payment method
+  </Step>
+</Steps>
+
+### Withdrawal Request Statuses
+
+- **Pending (0)**: Awaiting admin approval
+- **Approved (1)**: Payment processed
+- **Rejected (2)**: Request declined (amount returned to balance)
+
+### Withdrawal History
+
+**Route**: `/affiliate/user/withdraw-request-history`
+
+<Steps>
+  <Step title="View All Requests">
+    Navigate to Affiliate > Withdrawal History
+  </Step>
+  
+  <Step title="Check Request Status">
+    Monitor pending and completed withdrawals
+  </Step>
+  
+  <Step title="Review Payments">
+    See dates and amounts of past payouts
+  </Step>
+</Steps>
+
+<Note>
+If a withdrawal request is rejected:
+- Amount is credited back to your balance
+- You can submit a new request
+- Check rejection reason from admin
+</Note>
+
+## Payment History
+
+**Route**: `/affiliate/user/payment-history`
+
+View all payments received:
+
+- Payment date
+- Amount paid
+- Payment method used
+- Related withdrawal request
+- Transaction reference
+
+## Best Practices for Affiliates
+
+### Content Creation
+
+1. **Honest Reviews**: Write genuine product reviews
+2. **Quality Content**: Create valuable content for your audience
+3. **Clear Disclosure**: Disclose affiliate relationships
+4. **Visual Content**: Use images and videos
+5. **SEO Optimization**: Optimize content for search engines
+
+### Marketing Strategies
+
+1. **Social Media**: Share on Facebook, Instagram, Twitter
+2. **Email Marketing**: Build email list and send newsletters
+3. **Blogging**: Write product reviews and comparisons
+4. **YouTube**: Create unboxing and review videos
+5. **Pinterest**: Pin products with affiliate links
+6. **Forums**: Participate in relevant communities
+
+### Choosing Products
+
+1. **Know Your Audience**: Promote products they need
+2. **High-Quality Items**: Only recommend quality products
+3. **Good Commission**: Focus on products with better rates
+4. **Seasonal Trends**: Leverage seasonal demand
+5. **Personal Experience**: Promote products you've used
+
+### Compliance
+
+1. **Follow Guidelines**: Adhere to platform rules
+2. **No Spam**: Don't send unsolicited messages
+3. **Honest Marketing**: No false claims or misleading info
+4. **Respect Privacy**: Don't share customer information
+5. **Disclose Relationships**: Be transparent about affiliate links
+
+## Affiliate Limitations
+
+Some platforms may impose:
+
+- **Maximum Affiliate Limit**: Cap on referral earnings per period
+- **Validation Time**: Holding period for commissions
+- **Minimum Withdrawal**: Minimum amount for payout
+- **Inactive Accounts**: Removal of inactive affiliates
+
+<Tip>
+Check your platform's specific affiliate terms and conditions for detailed rules and limitations.
+</Tip>
+
+## Troubleshooting
+
+**Q: My referral link isn't working**  
+A:
+- Verify your affiliate status is approved
+- Check if you copied the complete link
+- Ensure affiliate system is active
+- Test link in incognito/private browsing
+
+**Q: Commission wasn't credited**  
+A:
+- Check if order was paid (commission only on paid orders)
+- Verify order wasn't cancelled
+- Check validation time requirements
+- Review affiliate logs for the referral
+
+**Q: Withdrawal request was rejected**  
+A:
+- Check admin's rejection message
+- Verify minimum withdrawal amount
+- Ensure payment details are complete
+- Contact support for clarification
+
+**Q: Can't see affiliate dashboard**  
+A:
+- Confirm your affiliate application was approved
+- Check if you're logged in
+- Verify affiliate system is enabled
+- Contact admin if approved but no access
+
+**Q: Different commission than expected**  
+A:
+- Check which commission type is active
+- Review category-specific rates
+- Verify calculation method (fixed vs percentage)
+- Contact support with specific examples
+
+## Related Sections
+
+- [Customer Registration](/customer/registration)
+- [Shopping Guide](/customer/shopping)
+- [Wallet Usage](/customer/wallet)

@@ -1,0 +1,105 @@
+---
+title: Admin Dashboard
+description: Comprehensive guide to using the admin dashboard and monitoring your e-commerce platform
+---
+
+## Overview
+
+The admin dashboard is your command center for monitoring and managing the entire Ecom e-commerce platform. It provides real-time insights into sales, products, categories, and overall platform performance.
+
+## Accessing the Dashboard
+
+<Steps>
+  <Step title="Navigate to Admin Panel">
+    Log in to your admin account and you'll be automatically directed to the dashboard at `/admin`
+  </Step>
+  
+  <Step title="Review Dashboard Metrics">
+    The dashboard displays key performance indicators including:
+    - Total sales by category
+    - Product quantity in stock
+    - Category-wise analytics
+    - Recent activity overview
+  </Step>
+</Steps>
+
+## Dashboard Components
+
+### Sales Analytics Graph
+
+The dashboard features an interactive graph showing:
+
+- **Number of Sales Data**: Tracks total sales per root category
+- **Quantity Data**: Displays stock quantities across categories
+- **Category Performance**: Visual comparison of category sales
+
+<Note>
+The graph data is cached for 24 hours to improve performance. Use the cache clear function if you need to see immediate updates.
+</Note>
+
+### Category Overview
+
+View all root-level categories (categories with `level = 0`) and their performance metrics:
+
+- Total products in each category
+- Sales volume
+- Stock levels across all product variants
+
+## Key Functions
+
+### Clear Cache
+
+The dashboard includes a cache management tool to optimize platform performance.
+
+<Steps>
+  <Step title="Locate Clear Cache Option">
+    Find the "Clear Cache" button in the dashboard settings or utility menu
+    
+    **Screenshot Description**: Settings dropdown menu with "Clear Cache" option highlighted
+  </Step>
+  
+  <Step title="Execute Cache Clear">
+    Click the button to run `optimize:clear` command
+  </Step>
+  
+  <Step title="Confirm Success">
+    A success message will appear: "Cache cleared successfully"
+  </Step>
+</Steps>
+
+<Tip>
+Clear the cache after:
+- Updating business settings
+- Adding new products or categories
+- Modifying payment configurations
+- Making significant platform changes
+</Tip>
+
+## Dashboard Performance
+
+### Data Caching
+
+The dashboard uses intelligent caching to ensure fast load times:
+
+- Graph data is cached for 86400 seconds (24 hours)
+- Cache key: `cached_graph_data`
+- Automatically refreshes daily
+
+### Performance Optimization
+
+<Note>
+The dashboard automatically initializes the core component repository cache on each load to ensure optimal performance across the platform.
+</Note>
+
+## Best Practices
+
+1. **Regular Monitoring**: Check the dashboard daily to track platform performance
+2. **Cache Management**: Clear cache after major updates
+3. **Category Analysis**: Use category-wise data to identify top performers
+4. **Stock Monitoring**: Keep track of quantity data to prevent stockouts
+
+## Related Sections
+
+- [Product Management](/admin/product-management)
+- [Order Management](/admin/order-management)
+- [Business Settings](/admin/business-settings)

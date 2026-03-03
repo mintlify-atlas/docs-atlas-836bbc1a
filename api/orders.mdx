@@ -1,0 +1,281 @@
+---
+title: 'Orders'
+description: 'Create and manage customer orders'
+---
+
+<Note>
+All order endpoints require authentication with `auth:sanctum`.
+</Note>
+
+## Create Order
+
+<api method="POST" endpoint="/api/v2/order/store" auth="sanctum">
+  Create a new order from cart items
+</api>
+
+### Request
+
+<ParamField body="payment_type" type="string" required>
+  Payment method: `cash_on_delivery`, `wallet`, `manual_payment_1`, or online payment gateway name
+</ParamField>
+
+### Response
+
+<ResponseField name="result" type="boolean">
+  Success status
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Success or error message
+</ResponseField>
+
+<ResponseField name="combined_order_id" type="integer">
+  Combined order ID (0 if failed)
+</ResponseField>
+
+### Example
+
+```bash
+curl -X POST https://your-domain.com/api/v2/order/store \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payment_type": "cash_on_delivery"
+  }'
+```
+
+<Info>
+The order creation process:
+1. Validates minimum order amount (if configured)
+2. Checks cart is not empty
+3. Gets shipping address from cart
+4. Creates combined order and individual orders per seller
+5. Reduces product stock
+6. Applies coupons and calculates totals
+7. Clears cart
+8. Sends notifications
+</Info>
+
+## Cancel Order
+
+<api method="GET" endpoint="/api/v2/order/cancel/{id}" auth="sanctum">
+  Cancel a pending unpaid order
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Order ID
+</ParamField>
+
+### Response
+
+```json
+{
+  "result": true,
+  "message": "Order has been canceled successfully"
+}
+```
+
+<Warning>
+Orders can only be cancelled if:
+- Delivery status is "pending"
+- Payment status is "unpaid"
+- Order belongs to the authenticated user
+</Warning>
+
+### Example
+
+```bash
+curl -X GET https://your-domain.com/api/v2/order/cancel/123 \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+## Purchase History
+
+### Get Order List
+
+<api method="GET" endpoint="/api/v2/purchase-history" auth="sanctum">
+  Get user's order history
+</api>
+
+### Response
+
+Paginated list of orders with details.
+
+### Example
+
+```bash
+curl -X GET https://your-domain.com/api/v2/purchase-history \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+### Get Order Details
+
+<api method="GET" endpoint="/api/v2/purchase-history-details/{id}" auth="sanctum">
+  Get detailed information about a specific order
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Order ID
+</ParamField>
+
+### Get Order Items
+
+<api method="GET" endpoint="/api/v2/purchase-history-items/{id}" auth="sanctum">
+  Get items in a specific order
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Order ID
+</ParamField>
+
+## Re-order
+
+<api method="GET" endpoint="/api/v2/re-order/{id}" auth="sanctum">
+  Add items from a previous order back to cart
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Order ID to re-order
+</ParamField>
+
+## Digital Products
+
+### Get Digital Purchased Products
+
+<api method="GET" endpoint="/api/v2/digital/purchased-list" auth="sanctum">
+  Get list of purchased digital products
+</api>
+
+### Download Digital Product
+
+<api method="GET" endpoint="/api/v2/purchased-products/download/{id}" auth="sanctum">
+  Download a purchased digital product
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Product ID
+</ParamField>
+
+## Invoice
+
+<api method="GET" endpoint="/api/v2/invoice/download/{id}" auth="sanctum">
+  Download order invoice
+</api>
+
+### Path Parameters
+
+<ParamField path="id" type="integer" required>
+  Order ID
+</ParamField>
+
+### Example
+
+```bash
+curl -X GET https://your-domain.com/api/v2/invoice/download/123 \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  --output invoice-123.pdf
+```
+
+## Refund Requests
+
+### Get Refund Request List
+
+<api method="GET" endpoint="/api/v2/refund-request/get-list" auth="sanctum">
+  Get user's refund requests
+</api>
+
+### Send Refund Request
+
+<api method="POST" endpoint="/api/v2/refund-request/send" auth="sanctum">
+  Submit a refund request for an order
+</api>
+
+<ParamField body="order_detail_id" type="integer" required>
+  Order detail ID
+</ParamField>
+
+<ParamField body="refund_reason" type="string" required>
+  Reason for refund
+</ParamField>
+
+<ParamField body="refund_amount" type="number">
+  Requested refund amount
+</ParamField>
+
+## Order Tracking
+
+Orders go through the following delivery statuses:
+
+1. **pending** - Order placed, awaiting confirmation
+2. **confirmed** - Order confirmed by seller
+3. **picked_up** - Picked up by delivery person
+4. **on_the_way** - Out for delivery
+5. **delivered** - Successfully delivered
+6. **cancelled** - Order cancelled
+
+Payment statuses:
+
+- **unpaid** - Payment not received
+- **paid** - Payment received
+
+## Order Response Structure
+
+Typical order object includes:
+
+<ResponseField name="id" type="integer">
+  Order ID
+</ResponseField>
+
+<ResponseField name="code" type="string">
+  Unique order code
+</ResponseField>
+
+<ResponseField name="user_id" type="integer">
+  Customer ID
+</ResponseField>
+
+<ResponseField name="grand_total" type="number">
+  Total order amount
+</ResponseField>
+
+<ResponseField name="payment_type" type="string">
+  Payment method used
+</ResponseField>
+
+<ResponseField name="payment_status" type="string">
+  Payment status (paid/unpaid)
+</ResponseField>
+
+<ResponseField name="delivery_status" type="string">
+  Current delivery status
+</ResponseField>
+
+<ResponseField name="shipping_address" type="object">
+  Shipping address details (JSON)
+</ResponseField>
+
+<ResponseField name="coupon_discount" type="number">
+  Discount from coupon
+</ResponseField>
+
+<ResponseField name="shipping_type" type="string">
+  Shipping method (home_delivery, pickup_point, carrier)
+</ResponseField>
+
+<ResponseField name="order_from" type="string">
+  Order source (app, web)
+</ResponseField>
+
+<ResponseField name="date" type="integer">
+  Order timestamp
+</ResponseField>

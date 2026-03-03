@@ -1,0 +1,448 @@
+---
+title: 'PayPal Integration'
+description: 'Configure PayPal payment gateway for global payments'
+icon: 'paypal'
+---
+
+## Overview
+
+PayPal is one of the world's most popular payment platforms, enabling customers to pay using their PayPal balance, credit cards, or debit cards. Ecom uses the PayPal Checkout SDK for seamless integration.
+
+## Prerequisites
+
+- PayPal Business account ([Sign up here](https://www.paypal.com/businessmanager/))
+- PayPal API credentials (Client ID and Secret)
+- SSL certificate for production
+
+## Configuration
+
+### Step 1: Get PayPal API Credentials
+
+<Steps>
+  <Step title="Login to PayPal Developer">
+    Go to [PayPal Developer Dashboard](https://developer.paypal.com/dashboard/)
+  </Step>
+  
+  <Step title="Create an App">
+    Navigate to **Apps & Credentials** and click **Create App**
+  </Step>
+  
+  <Step title="Copy Credentials">
+    Copy your **Client ID** and **Secret** from the app details
+  </Step>
+  
+  <Step title="Choose Environment">
+    Toggle between **Sandbox** (testing) and **Live** (production)
+  </Step>
+</Steps>
+
+### Step 2: Configure Environment Variables
+
+Add PayPal credentials to your `.env` file:
+
+```bash .env
+# PayPal Configuration
+PAYPAL_CLIENT_ID=AZD...
+PAYPAL_CLIENT_SECRET=EL...
+PAYPAL_SANDBOX=1  # Set to 0 for production
+```
+
+<Note>
+  Set `PAYPAL_SANDBOX=1` for testing with sandbox accounts, and `PAYPAL_SANDBOX=0` when going live.
+</Note>
+
+### Step 3: Enable PayPal in Admin Panel
+
+<Steps>
+  <Step title="Access Admin Dashboard">
+    Login to your admin panel
+  </Step>
+  
+  <Step title="Navigate to Payment Methods">
+    Go to **Setup & Configurations** → **Payment Methods**
+  </Step>
+  
+  <Step title="Activate PayPal">
+    Enable PayPal and configure sandbox mode in business settings
+  </Step>
+</Steps>
+
+## Implementation Details
+
+### Controller Location
+
+```
+app/Http/Controllers/Payment/PaypalController.php
+```
+
+### Payment Flow
+
+<Steps>
+  <Step title="Initialize PayPal Client">
+    System creates PayPal HTTP client with environment configuration
+    
+    ```php app/Http/Controllers/Payment/PaypalController.php
+    public function pay()
+    {
+        // Creating an environment
+        $clientId = env('PAYPAL_CLIENT_ID');
+        $clientSecret = env('PAYPAL_CLIENT_SECRET');
+
+        if (get_setting('paypal_sandbox') == 1) {
+            $environment = new SandboxEnvironment($clientId, $clientSecret);
+        } else {
+            $environment = new ProductionEnvironment($clientId, $clientSecret);
+        }
+        $client = new PayPalHttpClient($environment);
+    }
+    ```
+  </Step>
+  
+  <Step title="Create PayPal Order">
+    Prepare order details and create PayPal order
+    
+    ```php app/Http/Controllers/Payment/PaypalController.php
+    if (Session::has('payment_type')) {
+        if (Session::get('payment_type') == 'cart_payment') {
+            $combined_order = CombinedOrder::findOrFail(Session::get('combined_order_id'));
+            $amount = $combined_order->grand_total;
+        }
+    }
+
+    $request = new OrdersCreateRequest();
+    $request->prefer('return=representation');
+    $request->body = [
+        "intent" => "CAPTURE",
+        "purchase_units" => [[
+            "reference_id" => rand(000000, 999999),
+            "amount" => [
+                "value" => number_format($amount, 2, '.', ''),
+                "currency_code" => \App\Models\Currency::findOrFail(get_setting('system_default_currency'))->code
+            ]
+        ]],
+        "application_context" => [
+            "cancel_url" => url('paypal/payment/cancel'),
+            "return_url" => url('paypal/payment/done')
+        ]
+    ];
+    ```
+  </Step>
+  
+  <Step title="Redirect to PayPal">
+    Customer is redirected to PayPal for payment
+    
+    ```php app/Http/Controllers/Payment/PaypalController.php
+    try {
+        $response = $client->execute($request);
+        return Redirect::to($response->result->links[1]->href);
+    } catch (\Exception $ex) {
+        flash(translate('Something was wrong'))->error();
+        return redirect()->route('home');
+    }
+    ```
+  </Step>
+  
+  <Step title="Capture Payment">
+    After customer approves payment, capture the order
+    
+    ```php app/Http/Controllers/Payment/PaypalController.php
+    public function getDone(Request $request)
+    {
+        $clientId = env('PAYPAL_CLIENT_ID');
+        $clientSecret = env('PAYPAL_CLIENT_SECRET');
+
+        if (get_setting('paypal_sandbox') == 1) {
+            $environment = new SandboxEnvironment($clientId, $clientSecret);
+        } else {
+            $environment = new ProductionEnvironment($clientId, $clientSecret);
+        }
+        $client = new PayPalHttpClient($environment);
+
+        $ordersCaptureRequest = new OrdersCaptureRequest($request->token);
+        $ordersCaptureRequest->prefer('return=representation');
+        
+        try {
+            $response = $client->execute($ordersCaptureRequest);
+
+            if ($request->session()->has('payment_type')) {
+                if ($request->session()->get('payment_type') == 'cart_payment') {
+                    return (new CheckoutController)->checkout_done($request->session()->get('combined_order_id'), json_encode($response));
+                }
+            }
+        } catch (\Exception $ex) {
+            // Handle error
+        }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Amount Formatting
+
+<Warning>
+  PayPal requires amounts in decimal format with 2 decimal places:
+  
+  ```php
+  "value" => number_format($amount, 2, '.', '')  // Correct: "100.00"
+  "value" => $amount  // May cause errors
+  ```
+</Warning>
+
+## Currency Support
+
+PayPal supports 25+ currencies. The system uses your default currency:
+
+```php
+"currency_code" => \App\Models\Currency::findOrFail(get_setting('system_default_currency'))->code
+```
+
+Supported currencies include:
+- USD, EUR, GBP, CAD, AUD
+- JPY, CNY, INR, MXN, BRL
+- And many more
+
+## Routes Configuration
+
+Required routes in `routes/web.php`:
+
+```php routes/web.php
+// PayPal Payment Routes
+Route::get('paypal/payment', [PaypalController::class, 'pay'])->name('paypal.pay');
+Route::get('paypal/payment/done', [PaypalController::class, 'getDone'])->name('paypal.done');
+Route::get('paypal/payment/cancel', [PaypalController::class, 'getCancel'])->name('paypal.cancel');
+```
+
+## Dependencies
+
+PayPal Checkout SDK is included via Composer:
+
+```json composer.json
+"require": {
+    "paypal/paypal-checkout-sdk": "dev-master"
+}
+```
+
+If not installed, run:
+
+```bash
+composer require paypal/paypal-checkout-sdk
+```
+
+## Testing with Sandbox
+
+### Sandbox Configuration
+
+Enable sandbox mode in `.env`:
+
+```bash
+PAYPAL_SANDBOX=1
+```
+
+The system automatically uses sandbox environment:
+
+```php
+if (get_setting('paypal_sandbox') == 1) {
+    $environment = new SandboxEnvironment($clientId, $clientSecret);
+} else {
+    $environment = new ProductionEnvironment($clientId, $clientSecret);
+}
+```
+
+### Create Sandbox Accounts
+
+<Steps>
+  <Step title="Access Sandbox Accounts">
+    Go to PayPal Developer Dashboard → **Sandbox** → **Accounts**
+  </Step>
+  
+  <Step title="Create Test Buyer">
+    Create a personal (buyer) sandbox account
+  </Step>
+  
+  <Step title="Create Test Seller">
+    Create a business (seller) sandbox account (optional)
+  </Step>
+  
+  <Step title="Get Credentials">
+    View account credentials for testing
+  </Step>
+</Steps>
+
+### Test Sandbox Payments
+
+Use sandbox account credentials to test:
+
+1. Add items to cart on your test site
+2. Select PayPal at checkout
+3. Login with sandbox buyer account
+4. Complete payment
+5. Verify order completion
+
+## Payment Cancellation
+
+When customers cancel payment:
+
+```php app/Http/Controllers/Payment/PaypalController.php
+public function getCancel(Request $request)
+{
+    $request->session()->forget('order_id');
+    $request->session()->forget('payment_data');
+    flash(translate('Payment cancelled'))->success();
+    return redirect()->route('home');
+}
+```
+
+## Supported Payment Types
+
+PayPal integration supports all payment types:
+
+### Cart Payment
+```php
+if (Session::get('payment_type') == 'cart_payment') {
+    $combined_order = CombinedOrder::findOrFail(Session::get('combined_order_id'));
+    $amount = $combined_order->grand_total;
+}
+```
+
+### Wallet Payment
+```php
+elseif (Session::get('payment_type') == 'wallet_payment') {
+    $amount = Session::get('payment_data')['amount'];
+}
+```
+
+### Package Payments
+```php
+elseif (Session::get('payment_type') == 'customer_package_payment') {
+    $customer_package = CustomerPackage::findOrFail(Session::get('payment_data')['customer_package_id']);
+    $amount = $customer_package->amount;
+}
+```
+
+## Error Handling
+
+The controller handles errors gracefully:
+
+```php
+try {
+    $response = $client->execute($request);
+    return Redirect::to($response->result->links[1]->href);
+} catch (\Exception $ex) {
+    flash(translate('Something was wrong'))->error();
+    return redirect()->route('home');
+}
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Authentication Failed">
+    **Cause**: Invalid Client ID or Secret
+    
+    **Solution**: 
+    - Verify credentials in `.env` match PayPal Developer Dashboard
+    - Ensure no extra spaces in credentials
+    - Check you're using correct environment (Sandbox vs Live)
+  </Accordion>
+  
+  <Accordion title="Currency Not Supported">
+    **Cause**: Selected currency not supported by PayPal
+    
+    **Solution**:
+    - Check [PayPal supported currencies](https://developer.paypal.com/docs/reports/reference/paypal-supported-currencies/)
+    - Update system default currency to supported currency
+  </Accordion>
+  
+  <Accordion title="Amount Validation Error">
+    **Cause**: Incorrect amount formatting
+    
+    **Solution**:
+    ```php
+    // Use number_format for proper formatting
+    "value" => number_format($amount, 2, '.', '')
+    ```
+  </Accordion>
+  
+  <Accordion title="Redirect URL Not Working">
+    **Cause**: Incorrect callback URLs
+    
+    **Solution**:
+    - Ensure URLs use HTTPS in production
+    - Verify routes are properly registered
+    - Check `.htaccess` or nginx configuration
+  </Accordion>
+</AccordionGroup>
+
+## Going Live
+
+<Steps>
+  <Step title="Complete PayPal Business Account">
+    Verify your business account with PayPal
+  </Step>
+  
+  <Step title="Get Live API Credentials">
+    Switch to **Live** in PayPal Developer Dashboard and get live credentials
+  </Step>
+  
+  <Step title="Update Environment Variables">
+    ```bash .env
+    PAYPAL_CLIENT_ID=<your-live-client-id>
+    PAYPAL_CLIENT_SECRET=<your-live-secret>
+    PAYPAL_SANDBOX=0
+    ```
+  </Step>
+  
+  <Step title="Update Business Settings">
+    Disable sandbox mode in admin panel business settings
+  </Step>
+  
+  <Step title="Test Live Payment">
+    Make a small test transaction with real PayPal account
+  </Step>
+</Steps>
+
+## Webhooks (Advanced)
+
+For real-time payment notifications:
+
+<Steps>
+  <Step title="Create Webhook in PayPal">
+    Go to PayPal Developer Dashboard → **Webhooks**
+  </Step>
+  
+  <Step title="Set Webhook URL">
+    ```
+    https://yourdomain.com/paypal/webhook
+    ```
+  </Step>
+  
+  <Step title="Select Events">
+    Subscribe to:
+    - `PAYMENT.CAPTURE.COMPLETED`
+    - `PAYMENT.CAPTURE.DENIED`
+    - `CHECKOUT.ORDER.APPROVED`
+  </Step>
+</Steps>
+
+## Security Best Practices
+
+<Warning>
+  **Protect Your API Credentials**
+  
+  - Never commit `.env` file to version control
+  - Use different credentials for sandbox and production
+  - Implement webhook signature verification
+  - Enable HTTPS for all payment pages
+  - Regularly rotate API credentials
+</Warning>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Payment Overview" icon="credit-card" href="/integrations/payments-overview">
+    Learn about payment architecture
+  </Card>
+  <Card title="Stripe Integration" icon="stripe" href="/integrations/stripe">
+    Configure Stripe as alternative
+  </Card>
+</CardGroup>

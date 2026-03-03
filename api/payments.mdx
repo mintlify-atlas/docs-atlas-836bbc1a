@@ -1,0 +1,426 @@
+---
+title: 'Payments'
+description: 'Payment processing and wallet management'
+---
+
+## Payment Methods
+
+The Ecom platform supports multiple payment methods:
+
+- Cash on Delivery (COD)
+- Wallet Payment
+- Manual Payment
+- Online Payment Gateways (Stripe, PayPal, Razorpay, etc.)
+
+## Get Payment Types
+
+<api method="GET" endpoint="/api/v2/payment-types" auth="sanctum">
+  Get list of available payment methods
+</api>
+
+### Example
+
+```bash
+curl -X GET https://your-domain.com/api/v2/payment-types \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+## Cash on Delivery
+
+<api method="POST" endpoint="/api/v2/payments/pay/cod" auth="sanctum">
+  Place order with cash on delivery payment
+</api>
+
+### Request
+
+<ParamField body="payment_type" type="string" required>
+  Set to `cash_on_delivery`
+</ParamField>
+
+### Example
+
+```bash
+curl -X POST https://your-domain.com/api/v2/payments/pay/cod \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payment_type": "cash_on_delivery"
+  }'
+```
+
+## Wallet Payment
+
+### Pay with Wallet
+
+<api method="POST" endpoint="/api/v2/payments/pay/wallet" auth="sanctum">
+  Pay for order using wallet balance
+</api>
+
+### Get Wallet Balance
+
+<api method="GET" endpoint="/api/v2/wallet/balance" auth="sanctum">
+  Get current wallet balance
+</api>
+
+### Response
+
+```json
+{
+  "balance": 500.00,
+  "formatted_balance": "$500.00"
+}
+```
+
+### Get Wallet History
+
+<api method="GET" endpoint="/api/v2/wallet/history" auth="sanctum">
+  Get wallet transaction history
+</api>
+
+### Offline Wallet Recharge
+
+<api method="POST" endpoint="/api/v2/wallet/offline-recharge" auth="sanctum">
+  Submit offline wallet recharge request
+</api>
+
+<ParamField body="amount" type="number" required>
+  Recharge amount
+</ParamField>
+
+<ParamField body="payment_method" type="string" required>
+  Offline payment method used
+</ParamField>
+
+<ParamField body="trx_id" type="string">
+  Transaction ID
+</ParamField>
+
+<ParamField body="photo" type="string">
+  Payment receipt (base64 or upload ID)
+</ParamField>
+
+## Manual Payment
+
+<api method="POST" endpoint="/api/v2/payments/pay/manual" auth="sanctum">
+  Pay with manual payment method
+</api>
+
+### Request
+
+<ParamField body="payment_type" type="string" required>
+  Manual payment type (e.g., `manual_payment_1`)
+</ParamField>
+
+<ParamField body="trx_id" type="string">
+  Transaction ID
+</ParamField>
+
+<ParamField body="photo" type="file">
+  Payment proof image
+</ParamField>
+
+## Offline Payment Submit
+
+<api method="POST" endpoint="/api/v2/offline/payment/submit" auth="none">
+  Submit offline payment details
+</api>
+
+## Online Payment Gateways
+
+### Online Payment Initialize
+
+<api method="GET" endpoint="/api/v2/online-pay/init" auth="sanctum">
+  Initialize online payment session
+</api>
+
+<ParamField query="payment_method" type="string" required>
+  Payment gateway name
+</ParamField>
+
+<ParamField query="amount" type="number" required>
+  Payment amount
+</ParamField>
+
+<ParamField query="payment_type" type="string" required>
+  Type: `cart_payment`, `order_re_payment`, `wallet_recharge`, etc.
+</ParamField>
+
+### Payment Success
+
+<api method="GET" endpoint="/api/v2/online-pay/success" auth="none">
+  Payment success callback URL
+</api>
+
+### Payment Done
+
+<api method="GET" endpoint="/api/v2/online-pay/done" auth="none">
+  Payment completion URL
+</api>
+
+### Payment Failed
+
+<api method="GET" endpoint="/api/v2/online-pay/failed" auth="none">
+  Payment failure callback URL
+</api>
+
+## Stripe
+
+### Create Checkout Session
+
+<api method="POST" endpoint="/api/v2/stripe/create-checkout-session" auth="none">
+  Create Stripe checkout session
+</api>
+
+### Stripe Payment Callback
+
+<api method="POST" endpoint="/api/v2/stripe/payment/callback" auth="none">
+  Stripe payment callback
+</api>
+
+### Stripe Success
+
+<api method="GET" endpoint="/api/v2/stripe/success" auth="none">
+  Stripe payment success handler
+</api>
+
+### Stripe Cancel
+
+<api method="GET" endpoint="/api/v2/stripe/cancel" auth="none">
+  Stripe payment cancellation handler
+</api>
+
+## PayPal
+
+### Get PayPal Payment URL
+
+<api method="POST" endpoint="/api/v2/paypal/payment/url" auth="none">
+  Get PayPal payment URL
+</api>
+
+### PayPal Payment Done
+
+<api method="POST" endpoint="/api/v2/paypal/payment/done" auth="none">
+  PayPal payment success callback
+</api>
+
+### PayPal Payment Cancel
+
+<api method="POST" endpoint="/api/v2/paypal/payment/cancel" auth="none">
+  PayPal payment cancellation callback
+</api>
+
+## Razorpay
+
+### Pay with Razorpay
+
+<api method="POST" endpoint="/api/v2/razorpay/pay-with-razorpay" auth="none">
+  Initiate Razorpay payment
+</api>
+
+### Razorpay Payment
+
+<api method="POST" endpoint="/api/v2/razorpay/payment" auth="none">
+  Process Razorpay payment
+</api>
+
+### Razorpay Success
+
+<api method="POST" endpoint="/api/v2/razorpay/success" auth="none">
+  Razorpay payment success callback
+</api>
+
+## Paystack
+
+### Initialize Paystack
+
+<api method="POST" endpoint="/api/v2/paystack/init" auth="none">
+  Initialize Paystack payment
+</api>
+
+### Paystack Success
+
+<api method="POST" endpoint="/api/v2/paystack/success" auth="none">
+  Paystack payment success callback
+</api>
+
+## Flutterwave
+
+### Get Flutterwave URL
+
+<api method="POST" endpoint="/api/v2/flutterwave/payment/url" auth="none">
+  Get Flutterwave payment URL
+</api>
+
+### Flutterwave Callback
+
+<api method="POST" endpoint="/api/v2/flutterwave/payment/callback" auth="none">
+  Flutterwave payment callback
+</api>
+
+## Bkash
+
+### Begin Bkash Payment
+
+<api method="GET" endpoint="/api/v2/bkash/begin" auth="sanctum">
+  Begin Bkash payment process
+</api>
+
+### Bkash Webpage
+
+<api method="GET" endpoint="/api/v2/bkash/api/webpage/{token}/{amount}" auth="none">
+  Bkash payment webpage
+</api>
+
+### Bkash Execute
+
+<api method="POST" endpoint="/api/v2/bkash/api/execute/{token}" auth="none">
+  Execute Bkash payment
+</api>
+
+### Bkash Checkout
+
+<api method="GET" endpoint="/api/v2/bkash/api/checkout/{token}/{amount}" auth="none">
+  Bkash checkout page
+</api>
+
+### Bkash Process
+
+<api method="POST" endpoint="/api/v2/bkash/api/process" auth="none">
+  Process Bkash payment
+</api>
+
+### Bkash Callback
+
+<api method="POST" endpoint="/api/v2/bkash/api/callback" auth="none">
+  Bkash payment callback
+</api>
+
+### Bkash Success
+
+<api method="POST" endpoint="/api/v2/bkash/api/success" auth="none">
+  Bkash payment success handler
+</api>
+
+### Bkash Fail
+
+<api method="POST" endpoint="/api/v2/bkash/api/fail" auth="none">
+  Bkash payment failure handler
+</api>
+
+## Nagad
+
+### Begin Nagad Payment
+
+<api method="GET" endpoint="/api/v2/nagad/begin" auth="sanctum">
+  Begin Nagad payment process
+</api>
+
+### Nagad Verify
+
+<api method="POST" endpoint="/api/v2/nagad/verify/{payment_type}" auth="none">
+  Verify Nagad payment
+</api>
+
+### Nagad Process
+
+<api method="POST" endpoint="/api/v2/nagad/process" auth="none">
+  Process Nagad payment
+</api>
+
+## SSLCommerz
+
+### Begin SSLCommerz
+
+<api method="GET" endpoint="/api/v2/sslcommerz/begin" auth="none">
+  Begin SSLCommerz payment
+</api>
+
+### SSLCommerz Success
+
+<api method="POST" endpoint="/api/v2/sslcommerz/success" auth="none">
+  SSLCommerz payment success
+</api>
+
+### SSLCommerz Fail
+
+<api method="POST" endpoint="/api/v2/sslcommerz/fail" auth="none">
+  SSLCommerz payment failure
+</api>
+
+### SSLCommerz Cancel
+
+<api method="POST" endpoint="/api/v2/sslcommerz/cancel" auth="none">
+  SSLCommerz payment cancellation
+</api>
+
+## Aamarpay
+
+### Aamarpay Payment
+
+<api method="POST" endpoint="/api/v2/amarpay" auth="none">
+  Initiate Aamarpay payment
+</api>
+
+### Aamarpay Success
+
+<api method="POST" endpoint="/api/v2/amarpay/success" auth="none">
+  Aamarpay payment success
+</api>
+
+### Aamarpay Cancel
+
+<api method="POST" endpoint="/api/v2/amarpay/cancel" auth="none">
+  Aamarpay payment cancellation
+</api>
+
+## Other Payment Gateways
+
+### Khalti
+
+<api method="POST" endpoint="/api/v2/khalti/payment/pay" auth="none">
+  Pay with Khalti
+</api>
+
+### Iyzico
+
+<api method="POST" endpoint="/api/v2/iyzico/init" auth="none">
+  Initialize Iyzico payment
+</api>
+
+### Paytm
+
+<api method="POST" endpoint="/api/v2/paytm/payment/pay" auth="none">
+  Pay with Paytm
+</api>
+
+### Instamojo
+
+<api method="GET" endpoint="/api/v2/instamojo/pay" auth="none">
+  Pay with Instamojo
+</api>
+
+### Payfast
+
+<api method="GET" endpoint="/api/v2/payfast/initiate" auth="none">
+  Initiate Payfast payment
+</api>
+
+## Customer Packages
+
+### Get Package List
+
+<api method="GET" endpoint="/api/v2/customer-packages" auth="none">
+  Get available customer packages
+</api>
+
+### Purchase Package (Offline)
+
+<api method="POST" endpoint="/api/v2/offline/packages-payment" auth="sanctum">
+  Purchase package with offline payment
+</api>
+
+### Purchase Package (Free)
+
+<api method="POST" endpoint="/api/v2/free/packages-payment" auth="sanctum">
+  Purchase free package
+</api>

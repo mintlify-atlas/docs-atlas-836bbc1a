@@ -1,0 +1,472 @@
+---
+title: Wholesale Functionality
+description: Enable B2B wholesale products with quantity-based pricing tiers
+---
+
+## Overview
+
+The wholesale module allows sellers to offer B2B products with tiered pricing based on quantity. Perfect for businesses selling in bulk with different price points for different order quantities.
+
+<CardGroup cols={2}>
+  <Card title="Quantity Tiers" icon="layer-group">
+    Define multiple price points based on order quantity
+  </Card>
+  <Card title="Seller & Admin" icon="users">
+    Both admin and sellers can create wholesale products
+  </Card>
+  <Card title="Package Integration" icon="box">
+    Respects seller package upload limits
+  </Card>
+  <Card title="Separate Listing" icon="list">
+    Wholesale products have dedicated admin views
+  </Card>
+</CardGroup>
+
+## Product Structure
+
+Wholesale products are regular products with `wholesale_product = 1` flag:
+
+```php
+// From Product model
+public function bids()
+{
+    return $this->hasMany(AuctionProductBid::class);
+}
+```
+
+Wholesale products use the same `Product` model but are filtered by the `wholesale_product` column.
+
+## Listing Wholesale Products
+
+### Admin Views
+
+Three main listing views for wholesale products:
+
+**All Wholesale Products** (`app/Http/Controllers/WholesaleProductController.php:29`):
+
+```php
+public function all_wholesale_products(Request $request)
+{
+    $type = 'All';
+    $col_name = null;
+    $query = null;
+    $sort_search = null;
+    $seller_id  = null;
+
+    $products = Product::where('wholesale_product', 1)
+        ->orderBy('created_at', 'desc');
+
+    if ($request->has('user_id') && $request->user_id != null) {
+        $products = $products->where('user_id', $request->user_id);
+        $seller_id = $request->user_id;
+    }
+
+    if ($request->type != null){
+        $var = explode(",", $request->type);
+        $col_name = $var[0];
+        $query = $var[1];
+        $products = $products->orderBy($col_name, $query);
+    }
+    
+    if ($request->search != null){
+        $products = $products->where('name', 'like', '%'.$request->search.'%');
+        $sort_search = $request->search;
+    }
+
+    $products = $products->paginate(15);
+
+    return view('wholesale.products.index', 
+        compact('products','type', 'col_name', 'query', 'sort_search','seller_id'));
+}
+```
+
+**In-House Products** (`app/Http/Controllers/WholesaleProductController.php:64`):
+
+```php
+public function in_house_wholesale_products(Request $request)
+{
+    $products = Product::where('wholesale_product', 1)
+        ->where('added_by','admin')
+        ->orderBy('created_at', 'desc');
+    // ... filtering and sorting
+    return view('wholesale.products.index', compact('products','type'));
+}
+```
+
+**Seller Products** (`app/Http/Controllers/WholesaleProductController.php:93`):
+
+```php
+public function seller_wholesale_products(Request $request)
+{
+    $products = Product::where('wholesale_product', 1)
+        ->where('added_by','seller')
+        ->orderBy('created_at', 'desc');
+    // ... filtering and sorting
+    return view('wholesale.products.index', compact('products'));
+}
+```
+
+### Seller Panel View
+
+Sellers can view their own wholesale products (`app/Http/Controllers/WholesaleProductController.php:129`):
+
+```php
+public function wholesale_products_list_seller(Request $request)
+{
+    $sort_search = null;
+    $col_name = null;
+    $query = null;
+    $products = Product::where('wholesale_product',1)
+        ->where('user_id',Auth::user()->id)
+        ->orderBy('created_at', 'desc');
+        
+    if ($request->type != null){
+        $var = explode(",", $request->type);
+        $col_name = $var[0];
+        $query = $var[1];
+        $products = $products->orderBy($col_name, $query);
+    }
+    
+    if ($request->search != null){
+        $products = $products->where('name', 'like', '%'.$request->search.'%');
+        $sort_search = $request->search;
+    }
+
+    $products = $products->paginate(15);
+
+    return view('wholesale.frontend.seller_products.index', 
+        compact('products', 'sort_search','col_name'));
+}
+```
+
+## Creating Wholesale Products
+
+### Admin Creation
+
+<Steps>
+  <Step title="Load Categories">
+    Fetch physical (non-digital) categories with children
+  </Step>
+  <Step title="Create Product">
+    Use WholesaleService to store product data
+  </Step>
+  <Step title="Attach Categories">
+    Link product to selected categories
+  </Step>
+  <Step title="Add Tax">
+    Configure VAT and tax settings if applicable
+  </Step>
+  <Step title="Handle Flash Deals">
+    Add to flash deals if configured
+  </Step>
+  <Step title="Create Translation">
+    Store product name, unit, and description
+  </Step>
+</Steps>
+
+**Implementation** (`app/Http/Controllers/WholesaleProductController.php:192`):
+
+```php
+public function product_store_admin(WholesaleProductRequest $request)
+{ 
+    $product = (new WholesaleService)->store($request->except([
+        '_token', 'button', 'flat_shipping_cost', 'tax_id', 'tax', 
+        'tax_type', 'flash_deal_id', 'flash_discount', 'flash_discount_type'
+    ]));
+    $request->merge(['product_id' => $product->id]);
+
+    //Product categories
+    $product->categories()->attach($request->category_ids);
+
+    //VAT & Tax
+    if ($request->tax_id) {
+        (new productTaxService)->store($request->only([
+            'tax_id', 'tax', 'tax_type', 'product_id'
+        ]));
+    }
+
+    //Flash Deal
+    (new productFlashDealService)->store($request->only([
+        'flash_deal_id', 'flash_discount', 'flash_discount_type'
+    ]), $product);
+
+    // Product Translations
+    $request->merge(['lang' => env('DEFAULT_LANGUAGE')]);
+    ProductTranslation::create($request->only([
+        'lang', 'name', 'unit', 'description', 'product_id'
+    ]));
+
+    flash(translate('Product has been inserted successfully'))->success();
+
+    Artisan::call('view:clear');
+    Artisan::call('cache:clear');
+
+    return redirect()->route('wholesale_products.in_house');
+}
+```
+
+### Seller Creation
+
+Sellers can create wholesale products with package limit checks (`app/Http/Controllers/WholesaleProductController.php:165`):
+
+```php
+public function product_create_seller()
+{
+    $categories = Category::where('parent_id', 0)
+        ->where('digital', 0)
+        ->with('childrenCategories')
+        ->get();
+
+    if(get_setting('seller_wholesale_product') == 1){
+        if(addon_is_activated('seller_subscription')){
+            if(Auth::user()->shop->seller_package != null && 
+               Auth::user()->shop->seller_package->product_upload_limit > 
+               Auth::user()->products()->count()){
+                return view('wholesale.frontend.seller_products.create', 
+                    compact('categories'));
+            }
+            else {
+                flash(translate('Upload limit has been reached. Please upgrade your package.'))->warning();
+                return back();
+            }
+        }
+        return view('wholesale.frontend.seller_products.create', 
+            compact('categories'));
+    }     
+}
+```
+
+**Store with Limit Check** (`app/Http/Controllers/WholesaleProductController.php:228`):
+
+```php
+public function product_store_seller(WholesaleProductRequest $request)
+{
+    if (addon_is_activated('seller_subscription')) {
+        if (
+            (Auth::user()->shop->seller_package == null) ||
+            (Auth::user()->shop->seller_package->product_upload_limit <= 
+             Auth::user()->products()->count())
+        ) {
+            flash(translate('Upload limit has been reached. Please upgrade your package.'))->warning();
+            return back();
+        }
+    }
+   
+    $product = (new WholesaleService)->store($request->except([
+        '_token', 'tax_id', 'tax', 'tax_type', 'flash_deal_id', 
+        'flash_discount', 'flash_discount_type'
+    ]));
+    $request->merge(['product_id' => $product->id]);
+
+    //Product categories
+    $product->categories()->attach($request->category_ids);
+    
+    //VAT & Tax
+    if ($request->tax_id) {
+        (new productTaxService)->store($request->only([
+            'tax_id', 'tax', 'tax_type', 'product_id'
+        ]));
+    }
+
+    // Product Translations
+    $request->merge(['lang' => env('DEFAULT_LANGUAGE')]);
+    ProductTranslation::create($request->only([
+        'lang', 'name', 'unit', 'description', 'product_id'
+    ]));
+
+    flash(translate('Product has been inserted successfully'))->success();
+
+    Artisan::call('view:clear');
+    Artisan::call('cache:clear');
+    
+    return redirect()->route('seller.wholesale_products_list');
+}
+```
+
+<Note>
+The `WholesaleService` handles creating the product with `wholesale_product = 1` and manages wholesale price tiers.
+</Note>
+
+## Updating Wholesale Products
+
+### Admin Update
+
+```php
+public function product_update_admin(WholesaleProductRequest $request, $id)
+{
+    (new WholesaleService)->update($request, $id);
+    flash(translate('Product has been updated successfully'))->success();
+
+    Artisan::call('view:clear');
+    Artisan::call('cache:clear');
+    return back();
+}
+```
+
+### Seller Update
+
+```php
+public function product_update_seller(WholesaleProductRequest $request, $id)
+{
+    (new WholesaleService)->update($request, $id);
+    flash(translate('Product has been updated successfully'))->success();
+
+    Artisan::call('view:clear');
+    Artisan::call('cache:clear');
+    return back();
+}
+```
+
+## Deleting Wholesale Products
+
+### Admin Deletion
+
+```php
+public function product_destroy_admin($id)
+{
+    (new WholesaleService)->destroy($id);
+    flash(translate('Product has been deleted successfully'))->success();
+        
+    Artisan::call('view:clear');
+    Artisan::call('cache:clear');
+    return back();
+}
+```
+
+### Seller Deletion
+
+```php
+public function product_destroy_seller($id)
+{
+    (new WholesaleService)->destroy($id);
+    flash(translate('Product has been deleted successfully'))->success();
+        
+    Artisan::call('view:clear');
+    Artisan::call('cache:clear');
+    return back();
+}
+```
+
+## Routes
+
+Wholesale routes are defined in `routes/wholesale.php`:
+
+**Admin Routes:**
+
+```php
+Route::group(['prefix' =>'admin', 'middleware' => ['auth', 'admin']], function(){   
+    Route::controller(WholesaleProductController::class)->group(function () {
+        Route::get('/wholesale/all-products', 'all_wholesale_products')
+            ->name('wholesale_products.all');
+        Route::get('/wholesale/inhouse-products', 'in_house_wholesale_products')
+            ->name('wholesale_products.in_house');
+        Route::get('/wholesale/seller-products', 'seller_wholesale_products')
+            ->name('wholesale_products.seller');
+
+        Route::get('/wholesale-product/create', 'product_create_admin')
+            ->name('wholesale_product_create.admin');
+        Route::post('/wholesale-product/store', 'product_store_admin')
+            ->name('wholesale_product_store.admin');
+        Route::get('/wholesale-product/{id}/edit', 'product_edit_admin')
+            ->name('wholesale_product_edit.admin');
+        Route::post('/wholesale-product/update/{id}', 'product_update_admin')
+            ->name('wholesale_product_update.admin');
+        Route::get('/wholesale-product/destroy/{id}', 'product_destroy_admin')
+            ->name('wholesale_product_destroy.admin');
+    });
+});
+```
+
+**Seller Routes:**
+
+```php
+Route::group(['prefix' => 'seller', 'middleware' => ['seller', 'verified', 'user']], function() {
+    Route::controller(WholesaleProductController::class)->group(function () {
+        Route::get('/wholesale-products', 'wholesale_products_list_seller')
+            ->name('seller.wholesale_products_list');
+
+        Route::get('/wholesale-product/create', 'product_create_seller')
+            ->name('wholesale_product_create.seller');
+        Route::post('/wholesale-product/store', 'product_store_seller')
+            ->name('wholesale_product_store.seller');
+        Route::get('/wholesale-products/{id}/edit', 'product_edit_seller')
+            ->name('wholesale_product_edit.seller');
+        Route::post('/wholesale-product/update/{id}', 'product_update_seller')
+            ->name('wholesale_product_update.seller');
+        Route::get('/wholesale-product/destroy/{id}', 'product_destroy_seller')
+            ->name('wholesale_product_destroy.seller');
+    });
+});
+```
+
+## Permissions
+
+Wholesale functionality uses role-based permissions:
+
+```php
+public function __construct() {
+    $this->middleware(['permission:view_all_wholesale_products'])
+        ->only('all_wholesale_products');
+    $this->middleware(['permission:view_inhouse_wholesale_products'])
+        ->only('in_house_wholesale_products');
+    $this->middleware(['permission:view_sellers_wholesale_products'])
+        ->only('seller_wholesale_products');
+    $this->middleware(['permission:add_wholesale_product'])
+        ->only('product_create_admin');
+    $this->middleware(['permission:edit_wholesale_product'])
+        ->only('product_edit_admin');
+    $this->middleware(['permission:delete_wholesale_product'])
+        ->only('product_destroy_admin');
+}
+```
+
+## Wholesale Service
+
+The `WholesaleService` handles the business logic:
+
+```php
+// Example of what WholesaleService might contain
+class WholesaleService
+{
+    public function store($data)
+    {
+        $product = new Product();
+        $product->wholesale_product = 1;
+        // ... set other product fields
+        $product->save();
+        
+        // Create wholesale price tiers
+        $this->createPriceTiers($product, $data['price_tiers']);
+        
+        return $product;
+    }
+    
+    public function update($request, $id)
+    {
+        $product = Product::findOrFail($id);
+        // ... update product fields
+        
+        // Update price tiers
+        $this->updatePriceTiers($product, $request->price_tiers);
+        
+        return $product;
+    }
+    
+    public function destroy($id)
+    {
+        $product = Product::findOrFail($id);
+        $product->delete();
+    }
+}
+```
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Seller Packages" href="/features/seller-packages">
+    Wholesale products respect seller upload limits
+  </Card>
+  <Card title="Digital Products" href="/features/digital-products">
+    Another specialized product type
+  </Card>
+</CardGroup>

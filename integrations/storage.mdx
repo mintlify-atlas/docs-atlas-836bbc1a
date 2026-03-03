@@ -1,0 +1,658 @@
+---
+title: 'Cloud Storage Integration'
+description: 'Configure AWS S3 and Backblaze B2 for file storage'
+icon: 'cloud'
+---
+
+## Overview
+
+Ecom supports multiple storage drivers for managing uploaded files including product images, user avatars, and digital downloads. Choose between local storage or cloud storage providers for scalability and reliability.
+
+## Supported Storage Drivers
+
+- **Local**: Store files on your server
+- **AWS S3**: Amazon Simple Storage Service
+- **Backblaze B2**: Cost-effective S3-compatible storage
+- **Public**: Laravel's public disk
+
+## Configuration
+
+### Config File Location
+
+```
+config/filesystems.php
+```
+
+### Filesystem Configuration
+
+```php config/filesystems.php
+return [
+    'default' => env('FILESYSTEM_DRIVER', 'local'),
+    
+    'cloud' => env('FILESYSTEM_CLOUD', 's3'),
+    
+    'disks' => [
+        'local' => [
+            'driver' => 'local',
+            'root' => public_path(),
+        ],
+
+        'public' => [
+            'driver' => 'local',
+            'root' => storage_path('app/public'),
+            'url' => env('APP_URL').'/storage',
+            'visibility' => 'public',
+        ],
+
+        'aws' => [
+            'driver'    => 's3',
+            'key'       => env('AWS_ACCESS_KEY_ID'),
+            'secret'    => env('AWS_SECRET_ACCESS_KEY'),
+            'region'    => env('AWS_DEFAULT_REGION'),
+            'bucket'    => env('AWS_BUCKET'),
+            'url'       => env('AWS_URL'),
+        ],
+
+        'backblaze' => [
+            'driver'    => 's3',
+            'key'       => env('BACKBLAZE_ACCESS_KEY_ID'),
+            'secret'    => env('BACKBLAZE_SECRET_ACCESS_KEY'),
+            'region'    => env('BACKBLAZE_DEFAULT_REGION'),
+            'bucket'    => env('BACKBLAZE_BUCKET'),
+            'url'       => env('BACKBLAZE_URL'),
+            'endpoint'  => env('BACKBLAZE_ENDPOINT'),
+        ],
+    ],
+];
+```
+
+## Local Storage
+
+### Configuration
+
+Default configuration stores files in public directory:
+
+```bash .env
+FILESYSTEM_DRIVER=local
+```
+
+### Benefits
+
+- No additional costs
+- Simple setup
+- Fast access
+- Full control
+
+### Limitations
+
+- Limited scalability
+- No automatic backups
+- Server disk space constraints
+- No CDN integration
+- Not suitable for multiple servers
+
+### Usage
+
+```php
+// Store file locally
+$path = $request->file('image')->store('uploads', 'local');
+
+// Access file
+$url = asset('uploads/' . $filename);
+```
+
+## AWS S3 Configuration
+
+Amazon S3 is the industry-standard cloud storage solution.
+
+### Step 1: Create AWS Account
+
+<Steps>
+  <Step title="Sign Up for AWS">
+    Go to [AWS Console](https://aws.amazon.com/) and create account
+  </Step>
+  
+  <Step title="Create IAM User">
+    Navigate to IAM → Users → Add User
+    - User name: ecom-storage
+    - Access type: Programmatic access
+  </Step>
+  
+  <Step title="Attach Policy">
+    Attach `AmazonS3FullAccess` policy or create custom policy:
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": ["s3:*"],
+          "Resource": [
+            "arn:aws:s3:::your-bucket-name",
+            "arn:aws:s3:::your-bucket-name/*"
+          ]
+        }
+      ]
+    }
+    ```
+  </Step>
+  
+  <Step title="Save Credentials">
+    Download CSV with Access Key ID and Secret Access Key
+  </Step>
+  
+  <Step title="Create S3 Bucket">
+    Navigate to S3 → Create bucket
+    - Bucket name: your-unique-bucket-name
+    - Region: Select closest to your users
+    - Unblock public access (for public files)
+  </Step>
+  
+  <Step title="Configure CORS">
+    Add CORS configuration to bucket:
+    ```json
+    [
+      {
+        "AllowedHeaders": ["*"],
+        "AllowedMethods": ["GET", "PUT", "POST", "DELETE"],
+        "AllowedOrigins": ["*"],
+        "ExposeHeaders": []
+      }
+    ]
+    ```
+  </Step>
+</Steps>
+
+### Step 2: Configure Environment
+
+```bash .env
+# AWS S3 Configuration
+FILESYSTEM_DRIVER=s3
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=...
+AWS_DEFAULT_REGION=us-east-1
+AWS_BUCKET=your-bucket-name
+AWS_URL=https://your-bucket-name.s3.amazonaws.com
+```
+
+### Step 3: Install AWS SDK
+
+AWS SDK is already included:
+
+```json composer.json
+"require": {
+    "league/flysystem-aws-s3-v3": "^3.12"
+}
+```
+
+If not installed:
+
+```bash
+composer require league/flysystem-aws-s3-v3
+```
+
+### S3 Regions
+
+Common AWS regions:
+
+| Region Code | Region Name |
+|-------------|-------------|
+| us-east-1 | US East (N. Virginia) |
+| us-west-2 | US West (Oregon) |
+| eu-west-1 | Europe (Ireland) |
+| eu-central-1 | Europe (Frankfurt) |
+| ap-south-1 | Asia Pacific (Mumbai) |
+| ap-southeast-1 | Asia Pacific (Singapore) |
+
+### Usage Example
+
+```php
+// Upload to S3
+$path = Storage::disk('s3')->put('products', $request->file('image'));
+
+// Get URL
+$url = Storage::disk('s3')->url($path);
+
+// Delete from S3
+Storage::disk('s3')->delete($path);
+```
+
+## Backblaze B2 Configuration
+
+Backblaze B2 is a cost-effective alternative to AWS S3 with S3-compatible API.
+
+### Pricing Comparison
+
+| Storage | AWS S3 | Backblaze B2 |
+|---------|--------|-------------|
+| Storage | $0.023/GB | $0.005/GB |
+| Download | $0.09/GB | $0.01/GB (free first 3x storage) |
+| API Calls | Varies | 2,500 free daily |
+
+### Step 1: Create Backblaze Account
+
+<Steps>
+  <Step title="Sign Up">
+    Go to [Backblaze B2](https://www.backblaze.com/b2/sign-up.html)
+  </Step>
+  
+  <Step title="Create Bucket">
+    Navigate to **B2 Cloud Storage** → **Create a Bucket**
+    - Bucket name: your-bucket-name
+    - Files in Bucket: Public
+    - Encryption: Disable (or enable if needed)
+  </Step>
+  
+  <Step title="Create Application Key">
+    Go to **App Keys** → **Add a New Application Key**
+    - Key Name: ecom-storage
+    - Allow access to: your-bucket-name
+    - Permissions: Read and Write
+  </Step>
+  
+  <Step title="Save Credentials">
+    Copy:
+    - keyID (Access Key)
+    - applicationKey (Secret Key)
+    - Endpoint URL
+  </Step>
+</Steps>
+
+### Step 2: Configure Environment
+
+```bash .env
+# Backblaze B2 Configuration
+FILESYSTEM_DRIVER=backblaze
+BACKBLAZE_ACCESS_KEY_ID=your_key_id
+BACKBLAZE_SECRET_ACCESS_KEY=your_application_key
+BACKBLAZE_DEFAULT_REGION=us-west-002
+BACKBLAZE_BUCKET=your-bucket-name
+BACKBLAZE_URL=https://f002.backblazeb2.com/file/your-bucket-name
+BACKBLAZE_ENDPOINT=https://s3.us-west-002.backblazeb2.com
+```
+
+### Backblaze Regions
+
+| Region Code | Region Name |
+|-------------|-------------|
+| us-west-001 | US West |
+| us-west-002 | US West 2 |
+| eu-central-003 | Europe |
+
+### Usage Example
+
+```php
+// Upload to Backblaze
+$path = Storage::disk('backblaze')->put('products', $request->file('image'));
+
+// Get URL
+$url = Storage::disk('backblaze')->url($path);
+
+// Delete from Backblaze
+Storage::disk('backblaze')->delete($path);
+```
+
+## File Upload Implementation
+
+### Upload Helper Function
+
+Ecom includes upload helper in:
+
+```
+app/Http/Helpers.php
+```
+
+### Example Upload Controller
+
+```php
+public function uploadImage(Request $request)
+{
+    $request->validate([
+        'image' => 'required|image|max:2048', // 2MB max
+    ]);
+
+    // Get configured disk
+    $disk = env('FILESYSTEM_DRIVER', 'local');
+
+    if ($disk == 's3' || $disk == 'backblaze') {
+        // Upload to cloud storage
+        $path = Storage::disk($disk)->put('uploads/products', $request->file('image'));
+        $url = Storage::disk($disk)->url($path);
+    } else {
+        // Upload to local storage
+        $path = $request->file('image')->store('uploads/products', 'local');
+        $url = asset($path);
+    }
+
+    // Save to database
+    $upload = new Upload;
+    $upload->file_name = $path;
+    $upload->file_original_name = $request->file('image')->getClientOriginalName();
+    $upload->file_size = $request->file('image')->getSize();
+    $upload->extension = $request->file('image')->getClientOriginalExtension();
+    $upload->type = $request->file('image')->getMimeType();
+    $upload->user_id = auth()->id();
+    $upload->save();
+
+    return response()->json([
+        'success' => true,
+        'path' => $path,
+        'url' => $url
+    ]);
+}
+```
+
+## Account Deletion with Storage
+
+When deleting user accounts, clean up storage:
+
+```php app/Http/Controllers/Auth/LoginController.php
+public function account_deletion(Request $request)
+{
+    $auth_user = auth()->user();
+
+    // Delete user images from storage
+    $uploads = $auth_user->uploads;
+    if ($uploads) {
+        foreach ($uploads as $upload) {
+            if (env('FILESYSTEM_DRIVER') == 's3') {
+                Storage::disk('s3')->delete($upload->file_name);
+                
+                // Also delete local cache if exists
+                if (file_exists(public_path() . '/' . $upload->file_name)) {
+                    unlink(public_path() . '/' . $upload->file_name);
+                }
+                
+                $upload->delete();
+            } else {
+                // Delete from local storage
+                unlink(public_path() . '/' . $upload->file_name);
+                $upload->delete();
+            }
+        }
+    }
+
+    // Delete user account
+    User::destroy(auth()->user()->id);
+    auth()->guard()->logout();
+    $request->session()->invalidate();
+
+    flash(translate("Your account deletion successfully done."))->success();
+    return redirect()->route('home');
+}
+```
+
+## File Types and Limits
+
+### Image Upload Validation
+
+```php
+$request->validate([
+    'image' => 'required|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+]);
+```
+
+### Document Upload Validation
+
+```php
+$request->validate([
+    'document' => 'required|mimes:pdf,doc,docx|max:5120', // 5MB
+]);
+```
+
+### Video Upload Validation
+
+```php
+$request->validate([
+    'video' => 'required|mimes:mp4,mov,avi|max:51200', // 50MB
+]);
+```
+
+## CDN Integration
+
+### CloudFront with S3
+
+For better performance, use CloudFront CDN:
+
+<Steps>
+  <Step title="Create CloudFront Distribution">
+    In AWS Console, go to CloudFront → Create Distribution
+  </Step>
+  
+  <Step title="Set Origin">
+    Origin Domain: your-bucket-name.s3.amazonaws.com
+  </Step>
+  
+  <Step title="Configure Settings">
+    - Viewer Protocol Policy: Redirect HTTP to HTTPS
+    - Allowed HTTP Methods: GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE
+    - Cache Policy: CachingOptimized
+  </Step>
+  
+  <Step title="Update AWS_URL">
+    ```bash .env
+    AWS_URL=https://your-distribution-id.cloudfront.net
+    ```
+  </Step>
+</Steps>
+
+## Image Optimization
+
+### Intervention Image
+
+Ecom uses Intervention Image for manipulation:
+
+```json composer.json
+"require": {
+    "intervention/image": "^2.5"
+}
+```
+
+### Resize Before Upload
+
+```php
+use Intervention\Image\Facades\Image;
+
+public function uploadAndResize(Request $request)
+{
+    $image = $request->file('image');
+    
+    // Resize image
+    $resized = Image::make($image)
+        ->resize(1200, null, function ($constraint) {
+            $constraint->aspectRatio();
+            $constraint->upsize();
+        })
+        ->encode('jpg', 85);
+    
+    // Upload to storage
+    $filename = time() . '.jpg';
+    Storage::disk('s3')->put('products/' . $filename, $resized->__toString());
+}
+```
+
+## Backup Strategy
+
+### Automated Backups
+
+For local storage, implement backups:
+
+```bash
+# Add to cron
+0 2 * * * php /path/to/artisan backup:run
+```
+
+For cloud storage, enable versioning:
+
+- **S3**: Enable versioning in bucket settings
+- **Backblaze**: B2 automatically keeps file versions
+
+## Security Best Practices
+
+<Warning>
+  **Storage Security Guidelines**
+  
+  - Never commit credentials to version control
+  - Use IAM policies with minimum required permissions
+  - Enable bucket versioning for recovery
+  - Implement file type validation
+  - Scan uploads for malware
+  - Set appropriate file size limits
+  - Use signed URLs for private files
+  - Enable bucket logging for audit trail
+  - Regularly review access permissions
+  - Use HTTPS for all file transfers
+</Warning>
+
+## Private Files
+
+### Generating Signed URLs
+
+For private downloads:
+
+```php
+// S3 temporary URL (expires in 1 hour)
+$url = Storage::disk('s3')->temporaryUrl(
+    'private/document.pdf', 
+    now()->addHours(1)
+);
+
+// Or use presigned URLs
+$s3 = Storage::disk('s3')->getDriver()->getAdapter()->getClient();
+$command = $s3->getCommand('GetObject', [
+    'Bucket' => env('AWS_BUCKET'),
+    'Key' => 'private/document.pdf'
+]);
+
+$request = $s3->createPresignedRequest($command, '+20 minutes');
+$url = (string) $request->getUri();
+```
+
+## Cost Optimization
+
+### S3 Storage Classes
+
+- **Standard**: Frequent access
+- **Intelligent-Tiering**: Automatic cost optimization
+- **Glacier**: Archive (slower retrieval)
+
+### Lifecycle Policies
+
+Automate file archival:
+
+```json
+{
+  "Rules": [
+    {
+      "Status": "Enabled",
+      "Transitions": [
+        {
+          "Days": 30,
+          "StorageClass": "STANDARD_IA"
+        },
+        {
+          "Days": 90,
+          "StorageClass": "GLACIER"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Access Denied Error">
+    **Cause**: Incorrect IAM permissions or credentials
+    
+    **Solution**:
+    - Verify AWS credentials in `.env`
+    - Check IAM user has S3 permissions
+    - Ensure bucket policy allows access
+    - Verify region is correct
+  </Accordion>
+  
+  <Accordion title="Files Not Accessible">
+    **Cause**: Bucket is private or CORS not configured
+    
+    **Solution**:
+    - Make bucket public or use signed URLs
+    - Configure CORS policy
+    - Check CloudFront settings if using CDN
+  </Accordion>
+  
+  <Accordion title="Upload Timeout">
+    **Cause**: Large file or slow connection
+    
+    **Solution**:
+    - Increase PHP `max_execution_time`
+    - Increase `upload_max_filesize` and `post_max_size`
+    - Use chunked uploads for large files
+    - Optimize file before upload
+  </Accordion>
+  
+  <Accordion title="High Storage Costs">
+    **Cause**: Many large files or frequent access
+    
+    **Solution**:
+    - Implement image optimization
+    - Use lifecycle policies for archival
+    - Delete unused files
+    - Consider switching to Backblaze B2
+    - Enable compression
+  </Accordion>
+</AccordionGroup>
+
+## Migration Between Storage Providers
+
+### Local to S3 Migration
+
+```php
+use Illuminate\Support\Facades\Storage;
+
+public function migrateToS3()
+{
+    $uploads = Upload::all();
+    
+    foreach ($uploads as $upload) {
+        $localPath = public_path($upload->file_name);
+        
+        if (file_exists($localPath)) {
+            // Upload to S3
+            $s3Path = Storage::disk('s3')->putFileAs(
+                dirname($upload->file_name),
+                new \Illuminate\Http\File($localPath),
+                basename($upload->file_name)
+            );
+            
+            // Update database
+            $upload->file_name = $s3Path;
+            $upload->save();
+            
+            // Optionally delete local file
+            // unlink($localPath);
+        }
+    }
+}
+```
+
+## Performance Optimization
+
+- Use CDN for static assets
+- Enable browser caching
+- Compress images before upload
+- Use lazy loading for images
+- Implement progressive image loading
+- Cache file URLs
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Media Management" icon="images" href="/features/media-manager">
+    Managing uploaded files
+  </Card>
+  <Card title="Product Images" icon="image" href="/products/images">
+    Product image handling
+  </Card>
+</CardGroup>

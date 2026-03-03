@@ -1,0 +1,481 @@
+---
+title: Auction Products
+description: Enable auction-style bidding on products with time-limited bidding periods
+---
+
+## Overview
+
+The auction module allows sellers to create time-limited auction products where customers can place bids. The highest bidder wins when the auction ends.
+
+<CardGroup cols={2}>
+  <Card title="Bid Management" icon="gavel">
+    Track all bids with user and product relationships
+  </Card>
+  <Card title="Time-Limited" icon="clock">
+    Set auction start and end times
+  </Card>
+  <Card title="Seller & Admin" icon="users">
+    Both admin and verified sellers can create auctions
+  </Card>
+  <Card title="Bid History" icon="list">
+    View complete bidding history per product
+  </Card>
+</CardGroup>
+
+## Model Structure
+
+### AuctionProductBid Model
+
+The `AuctionProductBid` model tracks all bids placed on auction products:
+
+```php
+class AuctionProductBid extends Model
+{
+    public function product(){
+        return $this->belongsTo(Product::class);
+    }
+    
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+}
+```
+
+**Key Relationships:**
+- `product` - Links bid to the auction product
+- `user` - Identifies the bidder
+
+**Database Fields:**
+- `product_id` - Reference to auction product
+- `user_id` - Bidder's user ID
+- `amount` - Bid amount
+- `created_at` - When bid was placed
+
+### Product Model Integration
+
+Auction products are regular products with auction-specific fields:
+
+```php
+// From Product model
+public function bids()
+{
+    return $this->hasMany(AuctionProductBid::class);
+}
+```
+
+**Auction-specific product fields:**
+- `auction_product` - Boolean flag (1 for auction products)
+- `auction_start_date` - When bidding opens
+- `auction_end_date` - When bidding closes
+- `starting_bid` - Minimum starting bid amount
+
+## Routes
+
+Auction routes are defined in `routes/auction.php`:
+
+### Admin Routes
+
+```php
+Route::group(['prefix' =>'admin', 'middleware' => ['auth', 'admin']], function(){
+    // Auction product lists
+    Route::controller(AuctionProductController::class)->group(function () {
+        Route::get('auction/all-products', 'all_auction_product_list')
+            ->name('auction.all_products');
+        Route::get('auction/inhouse-products', 'inhouse_auction_products')
+            ->name('auction.inhouse_products');
+        Route::get('auction/seller-products', 'seller_auction_products')
+            ->name('auction.seller_products');
+
+        Route::get('/auction-product/create', 'product_create_admin')
+            ->name('auction_product_create.admin');
+        Route::post('/auction-product/store', 'product_store_admin')
+            ->name('auction_product_store.admin');
+        Route::get('/auction_products/edit/{id}', 'product_edit_admin')
+            ->name('auction_product_edit.admin');
+        Route::post('/auction_products/update/{id}', 'product_update_admin')
+            ->name('auction_product_update.admin');
+        Route::get('/auction_products/destroy/{id}', 'product_destroy_admin')
+            ->name('auction_product_destroy.admin');
+
+        // Sales
+        Route::get('/auction_products-orders', 'admin_auction_product_orders')
+            ->name('auction_products_orders');
+    });
+    
+    Route::controller(AuctionProductBidController::class)->group(function () {
+        Route::get('/product-bids/{id}', 'product_bids_admin')
+            ->name('product_bids.admin');
+        Route::get('/product-bids/destroy/{id}', 'bid_destroy_admin')
+            ->name('product_bids_destroy.admin');
+    });
+});
+```
+
+### Seller Routes
+
+```php
+Route::group(['prefix' => 'seller', 'middleware' => ['seller', 'verified', 'user']], function() {
+    Route::controller(AuctionProductController::class)->group(function () {
+        Route::get('/auction_products', 'auction_product_list_seller')
+            ->name('auction_products.seller.index');
+
+        Route::get('/auction-product/create', 'product_create_seller')
+            ->name('auction_product_create.seller');
+        Route::post('/auction-product/store', 'product_store_seller')
+            ->name('auction_product_store.seller');
+        Route::get('/auction_products/edit/{id}', 'product_edit_seller')
+            ->name('auction_product_edit.seller');
+        Route::post('/auction_products/update/{id}', 'product_update_seller')
+            ->name('auction_product_update.seller');
+        Route::get('/auction_products/destroy/{id}', 'product_destroy_seller')
+            ->name('auction_product_destroy.seller');
+
+        Route::get('/auction_products-orders', 'seller_auction_product_orders')
+            ->name('auction_products_orders.seller');
+    });
+    
+    Route::controller(AuctionProductBidController::class)->group(function () {
+        Route::get('/product-bids/{id}', 'product_bids_seller')
+            ->name('product_bids.seller');
+        Route::get('/product-bids/destroy/{id}', 'bid_destroy_seller')
+            ->name('product_bids_destroy.seller');
+    });
+});
+```
+
+### Customer Routes
+
+```php
+// Authenticated users can bid
+Route::group(['middleware' => ['auth']], function() {
+    Route::resource('auction_product_bids', AuctionProductBidController::class);
+
+    Route::post('/auction/cart/show-cart-modal', 
+        [CartController::class, 'showCartModalAuction'])
+        ->name('auction.cart.showCartModal');
+        
+    Route::get('/auction/purchase_history', 
+        [AuctionProductController::class, 'purchase_history_user'])
+        ->name('auction_product.purchase_history');
+});
+```
+
+### Public Routes
+
+```php
+Route::post('/home/section/auction_products', 
+    [HomeController::class, 'load_auction_products_section'])
+    ->name('home.section.auction_products');
+
+Route::controller(AuctionProductController::class)->group(function () {
+    Route::get('/auction-product/{slug}', 'auction_product_details')
+        ->name('auction-product');
+    Route::get('/auction-products', 'all_auction_products')
+        ->name('auction_products.all');
+});
+```
+
+## Bidding Workflow
+
+<Steps>
+  <Step title="Create Auction Product">
+    Admin or seller creates product with auction flag, start/end dates, and starting bid
+  </Step>
+  <Step title="Customers View Auction">
+    Browse active auctions and view current highest bid
+  </Step>
+  <Step title="Place Bid">
+    Authenticated users submit bids higher than current highest bid
+  </Step>
+  <Step title="Track Bids">
+    System records all bids with timestamps and user information
+  </Step>
+  <Step title="Auction Ends">
+    Highest bidder wins when auction_end_date is reached
+  </Step>
+  <Step title="Process Order">
+    Winner can complete purchase at their winning bid amount
+  </Step>
+</Steps>
+
+## Managing Bids
+
+### View Product Bids (Admin)
+
+```php
+// Admin can view all bids for a product
+Route::get('/product-bids/{id}', 'product_bids_admin')
+    ->name('product_bids.admin');
+```
+
+**Example implementation:**
+
+```php
+public function product_bids_admin($id)
+{
+    $product = Product::findOrFail($id);
+    $bids = AuctionProductBid::where('product_id', $id)
+        ->with('user')
+        ->orderBy('amount', 'desc')
+        ->orderBy('created_at', 'asc')
+        ->paginate(20);
+    
+    return view('backend.auction.product_bids', compact('product', 'bids'));
+}
+```
+
+### View Product Bids (Seller)
+
+```php
+// Seller can view bids on their auction products
+Route::get('/product-bids/{id}', 'product_bids_seller')
+    ->name('product_bids.seller');
+```
+
+### Delete Bid
+
+Admins and sellers can remove inappropriate bids:
+
+```php
+// Admin delete
+Route::get('/product-bids/destroy/{id}', 'bid_destroy_admin')
+    ->name('product_bids_destroy.admin');
+
+// Seller delete
+Route::get('/product-bids/destroy/{id}', 'bid_destroy_seller')
+    ->name('product_bids_destroy.seller');
+```
+
+## Retrieving Auction Data
+
+### Get Highest Bid
+
+```php
+public function getHighestBid($product_id)
+{
+    return AuctionProductBid::where('product_id', $product_id)
+        ->orderBy('amount', 'desc')
+        ->first();
+}
+```
+
+### Get Bid Count
+
+```php
+public function getBidCount($product_id)
+{
+    return AuctionProductBid::where('product_id', $product_id)->count();
+}
+```
+
+### Get User's Bids
+
+```php
+public function getUserBids($user_id)
+{
+    return AuctionProductBid::where('user_id', $user_id)
+        ->with('product')
+        ->orderBy('created_at', 'desc')
+        ->paginate(15);
+}
+```
+
+### Check if User is Winning
+
+```php
+public function isUserWinning($product_id, $user_id)
+{
+    $highest_bid = $this->getHighestBid($product_id);
+    return $highest_bid && $highest_bid->user_id == $user_id;
+}
+```
+
+## Auction Validation
+
+### Validate Bid Amount
+
+```php
+public function validateBid($product_id, $bid_amount)
+{
+    $product = Product::findOrFail($product_id);
+    
+    // Check if auction is active
+    if (now() < $product->auction_start_date) {
+        return ['valid' => false, 'message' => 'Auction has not started yet'];
+    }
+    
+    if (now() > $product->auction_end_date) {
+        return ['valid' => false, 'message' => 'Auction has ended'];
+    }
+    
+    // Check minimum bid
+    $highest_bid = $this->getHighestBid($product_id);
+    $minimum_required = $highest_bid 
+        ? $highest_bid->amount + 1 
+        : $product->starting_bid;
+    
+    if ($bid_amount < $minimum_required) {
+        return [
+            'valid' => false, 
+            'message' => "Bid must be at least $minimum_required"
+        ];
+    }
+    
+    return ['valid' => true];
+}
+```
+
+### Place Bid
+
+```php
+public function placeBid(Request $request)
+{
+    $validation = $this->validateBid(
+        $request->product_id, 
+        $request->bid_amount
+    );
+    
+    if (!$validation['valid']) {
+        flash(translate($validation['message']))->error();
+        return back();
+    }
+    
+    $bid = new AuctionProductBid();
+    $bid->product_id = $request->product_id;
+    $bid->user_id = Auth::user()->id;
+    $bid->amount = $request->bid_amount;
+    $bid->save();
+    
+    flash(translate('Bid placed successfully'))->success();
+    return back();
+}
+```
+
+## Auction Listings
+
+### Active Auctions
+
+```php
+public function getActiveAuctions()
+{
+    return Product::where('auction_product', 1)
+        ->where('auction_start_date', '<=', now())
+        ->where('auction_end_date', '>=', now())
+        ->where('published', 1)
+        ->orderBy('auction_end_date', 'asc')
+        ->paginate(20);
+}
+```
+
+### Ending Soon
+
+```php
+public function getEndingSoonAuctions($hours = 24)
+{
+    return Product::where('auction_product', 1)
+        ->where('auction_start_date', '<=', now())
+        ->where('auction_end_date', '>=', now())
+        ->where('auction_end_date', '<=', now()->addHours($hours))
+        ->where('published', 1)
+        ->orderBy('auction_end_date', 'asc')
+        ->get();
+}
+```
+
+## Purchase History
+
+Users can view their won auctions:
+
+```php
+Route::get('/auction/purchase_history', 
+    [AuctionProductController::class, 'purchase_history_user'])
+    ->name('auction_product.purchase_history');
+```
+
+**Example implementation:**
+
+```php
+public function purchase_history_user()
+{
+    $orders = Order::where('user_id', Auth::user()->id)
+        ->whereHas('order_details', function($query) {
+            $query->whereHas('product', function($q) {
+                $q->where('auction_product', 1);
+            });
+        })
+        ->orderBy('created_at', 'desc')
+        ->paginate(15);
+    
+    return view('frontend.user.auction_purchase_history', compact('orders'));
+}
+```
+
+## Order Management
+
+View auction product orders:
+
+```php
+// Admin orders
+Route::get('/auction_products-orders', 'admin_auction_product_orders')
+    ->name('auction_products_orders');
+
+// Seller orders
+Route::get('/auction_products-orders', 'seller_auction_product_orders')
+    ->name('auction_products_orders.seller');
+```
+
+## Cart Integration
+
+Add winning bid to cart:
+
+```php
+Route::post('/auction/cart/show-cart-modal', 
+    [CartController::class, 'showCartModalAuction'])
+    ->name('auction.cart.showCartModal');
+```
+
+## Homepage Section
+
+Load auction products section on homepage:
+
+```php
+Route::post('/home/section/auction_products', 
+    [HomeController::class, 'load_auction_products_section'])
+    ->name('home.section.auction_products');
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Set Reasonable Start Dates">
+    Give buyers time to discover the auction before it ends
+  </Step>
+  <Step title="Validate Bids Server-Side">
+    Always check bid amounts, auction timing, and user authentication on the backend
+  </Step>
+  <Step title="Notify Bidders">
+    Send notifications when outbid or when auction ends
+  </Step>
+  <Step title="Handle Expired Auctions">
+    Create scheduled tasks to process winning bids and notify winners
+  </Step>
+  <Step title="Prevent Seller Bidding">
+    Ensure sellers cannot bid on their own auction products
+  </Step>
+</Steps>
+
+<Warning>
+Always validate auction timing and bid amounts on the server-side to prevent manipulation.
+</Warning>
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Wholesale Products" href="/features/wholesale">
+    Another specialized product type with tiered pricing
+  </Card>
+  <Card title="Digital Products" href="/features/digital-products">
+    Sell downloadable digital goods
+  </Card>
+</CardGroup>
